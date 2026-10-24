@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+
+/* Design tokens (SPEC §7). The module is dark by design: a light theme is out of scope. */
+:root {
+  --bg: #05070d;
+  --panel: rgba(10, 16, 32, 0.72);
+  --panel-border: rgba(120, 160, 255, 0.18);
+  --text: #e6edf7;
+  --text-dim: #8a9bb8;
+  --accent: #38bdf8;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.oi-root {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.orbital-canvas {
+  position: absolute !important;
+  inset: 0;
+}
+
+.oi-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.title {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(0.78rem, 2.6vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--text);
+}
+@media (max-width: 480px) {
+  .title {
+    letter-spacing: 0.1em;
+  }
+}
+
+.label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+.chip {
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+  transition: color 200ms, border-color 200ms, background 200ms;
+}
+.chip:hover {
+  color: var(--text);
+}
+.chip-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.debug-marker-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--warn);
+  background: rgba(5, 7, 13, 0.75);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transform: translateY(-18px);
+}
