@@ -38,11 +38,13 @@ export class DecisionStore {
   }
 
   /** Pending or auto-executed decision already made for this event (avoids paying the LLM twice). */
-  findOpenForEvent(eventId: string): DecisionRecord | undefined {
-    return this.records.find((r) => r.event.eventId === eventId && (r.status === 'pending' || r.status === 'auto-executed'));
+  findOpenForEvent(eventId: string, policyVersion?: number): DecisionRecord | undefined {
+    return this.records.find(
+      (r) => r.event.eventId === eventId && (r.status === 'pending' || r.status === 'auto-executed') && (policyVersion === undefined || r.policyVersion === policyVersion),
+    );
   }
 
-  create(event: AgentEventContext, options: AgentOption[], recommendation: AgentRecommendation, status: DecisionStatus, policy: string, now = Date.now()): DecisionRecord {
+  create(event: AgentEventContext, options: AgentOption[], recommendation: AgentRecommendation, status: DecisionStatus, policy: string, now = Date.now(), policyVersion?: number): DecisionRecord {
     const rec: DecisionRecord = {
       id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       createdAt: now,
@@ -51,6 +53,7 @@ export class DecisionStore {
       recommendation,
       status,
       policy,
+      ...(policyVersion !== undefined ? { policyVersion } : {}),
       ...(status === 'auto-executed' ? { resolvedAt: now, resolvedBy: 'auto-policy' as const } : {}),
     };
     this.records.push(rec);

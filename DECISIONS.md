@@ -165,3 +165,25 @@ Demande de l'utilisateur : quand un « Potential Close Approach » est détecté
 - **Clé** : `OPENAI_API_KEY` dans `.env`, lu par le serveur uniquement. Le serveur lit aussi `../.env` quand le projet se trouve dans un sous-dossier de HackLumen, dont le `.env` contient déjà cette variable.
 - **Tests** : 9 tests avec un OpenAI simulé au format Chat Completions documenté. **Limite** : api.openai.com est bloqué dans l'environnement cloud, l'appel réel n'a donc pas été exécuté ici. Il doit être vérifié sur la machine de l'utilisateur, avec sa clé.
 - Cette fonctionnalité correspond à deux éléments de SPEC §8.4 (« Plus tard ») et §1 : un LLM payant et des manœuvres. L'utilisateur les a demandés explicitement, et la limite de vocabulaire est respectée : aucune probabilité n'est affichée.
+
+### D30 — Options de l'agent selon la distance (correctif de D29)
+
+Constat de l'utilisateur, avec gpt-4o-mini connecté : l'agent répondait **toujours** « Request fresher tracking data ».
+
+**Causes :**
+- le prompt demandait de préférer une demande de données dès que les éléments sont anciens ; or ils ont toujours 1 à 2 jours ;
+- cette option était proposée même sous 1 km, où « exécuter automatiquement » une simple demande de données ne protège de rien ;
+- les poussées n'étaient calculées que pour l'objet primaire.
+
+**Correctif** (le filtrage est fait par le code, avant l'appel au LLM) :
+
+| Distance minimale calculée | Options proposées |
+|---|---|
+| < 1 km (exécution automatique) | **poussées uniquement**. Si aucun objet ne peut manœuvrer : surveiller ou demander des données |
+| 1 à 5 km | poussées, surveiller, et demander des données si le TCA est à au moins 12 h |
+| ≥ 5 km | surveiller, et demander des données si le TCA est à au moins 12 h |
+
+- **Poussées** : calculées pour **chaque** objet manœuvrable (charge utile ou station), le primaire comme le secondaire, avec les identifiants `burn_p_…` et `burn_s_…`.
+- **Prompt** : il explique ces niveaux et rappelle qu'une demande de données ne change pas la trajectoire.
+- **Versions** : `AGENT_POLICY_VERSION = 2` ; une décision prise avec d'anciennes règles n'est plus réutilisée.
+- **Tests** : 4 nouveaux tests, 68 au total.

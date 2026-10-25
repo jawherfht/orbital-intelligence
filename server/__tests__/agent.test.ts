@@ -38,8 +38,9 @@ describe('computed options', () => {
   it('sizes along-track burns with Δx ≈ 3·Δv·t (burn 2 h before TCA)', () => {
     expect(alongTrackDeltaV(5, 7200)).toBeCloseTo(0.2315, 4); // 5 km / (3 × 7200 s)
     const opts = computeOptions(ctx());
-    expect(opts.map((o) => o.id)).toEqual(['monitor', 'request_update', 'burn_5km']); // 2 km < 3.2 km already
-    const burn = opts.find((o) => o.id === 'burn_5km')!;
+    // 3.2 km = elevated tier; 2 km target already exceeded; TCA in 6 h < 12 h, so no data request.
+    expect(opts.map((o) => o.id)).toEqual(['burn_p_5km', 'monitor']);
+    const burn = opts.find((o) => o.id === 'burn_p_5km')!;
     expect(burn.deltaVMs).toBeCloseTo(0.2315, 3);
     expect(burn.burnTimeMs).toBe(NOW + 4 * 3_600_000);
   });
@@ -47,6 +48,29 @@ describe('computed options', () => {
   it('offers no burn for an object that cannot manoeuvre, or when TCA is too close', () => {
     expect(computeOptions(ctx({ primary: { ...ctx().primary, category: 'debris' } })).some((o) => o.kind === 'along_track_burn')).toBe(false);
     expect(computeOptions(ctx({ tcaMs: NOW + 20 * 60_000 })).some((o) => o.kind === 'along_track_burn')).toBe(false);
+  });
+});
+
+describe('options by distance tier', () => {
+  it('critical (< 1 km): burns only, so the agent must act', () => {
+    const ids = computeOptions(ctx({ minDistanceKm: 0.58, tcaMs: NOW + 22 * 3_600_000 })).map((o) => o.id);
+    expect(ids).toEqual(['burn_p_2km', 'burn_p_5km']);
+  });
+
+  it('critical with no manoeuvrable object: monitoring and a data request remain', () => {
+    const debris = { ...ctx().primary, category: 'debris' };
+    const ids = computeOptions(ctx({ minDistanceKm: 0.5, primary: debris })).map((o) => o.id);
+    expect(ids).toEqual(['monitor', 'request_update']);
+  });
+
+  it('burns are computed for the secondary when only it can manoeuvre', () => {
+    const c = ctx({ primary: { ...ctx().primary, category: 'rocket_body' }, secondary: { ...ctx().secondary, category: 'payload', name: 'SAT-B' } });
+    expect(computeOptions(c).map((o) => o.id)).toEqual(['burn_s_5km', 'monitor']);
+  });
+
+  it('a data request is offered only when the TCA leaves time to receive new data', () => {
+    expect(computeOptions(ctx({ minDistanceKm: 7.5, tcaMs: NOW + 22 * 3_600_000 })).map((o) => o.id)).toEqual(['monitor', 'request_update']);
+    expect(computeOptions(ctx({ minDistanceKm: 7.5, tcaMs: NOW + 6 * 3_600_000 })).map((o) => o.id)).toEqual(['monitor']);
   });
 });
 
@@ -59,7 +83,7 @@ describe('policy', () => {
   it('rule-based fallback picks the largest burn when very close', () => {
     const c = ctx({ minDistanceKm: 0.4 });
     const r = ruleBasedChoice(c, computeOptions(c), 'test');
-    expect(r.optionId).toBe('burn_5km');
+    expect(r.optionId).toBe('burn_p_5km');
     expect(r.urgency).toBe('critical');
     expect(r.decidedBy).toBe('rules');
   });
@@ -70,12 +94,12 @@ describe('LLM agent (gpt-4o-mini)', () => {
     let sent: { url: string; body: Record<string, unknown>; auth: string } | null = null;
     const fake = (async (url: string | URL, init?: RequestInit) => {
       sent = { url: String(url), body: JSON.parse(String(init?.body)), auth: (init?.headers as Record<string, string>).Authorization! };
-      return chatReply({ option_id: 'burn_5km', urgency: 'elevated', rationale: 'Smallest burn reaching 5 km.', caveats: 'No covariance.' });
+      return chatReply({ option_id: 'burn_p_5km', urgency: 'elevated', rationale: 'Smallest burn reaching 5 km.', caveats: 'No covariance.' });
     }) as typeof fetch;
     const c = ctx();
     const options = computeOptions(c);
     const r = await new DecisionAgent('sk-test', fake).recommend(c, options);
-    expect(r).toMatchObject({ optionId: 'burn_5km', urgency: 'elevated', decidedBy: 'gpt-4o-mini' });
+    expect(r).toMatchObject({ optionId: 'burn_p_5km', urgency: 'elevated', decidedBy: 'gpt-4o-mini' });
     expect(sent!.url).toBe('https://api.openai.com/v1/chat/completions');
     expect(sent!.auth).toBe('Bearer sk-test');
     expect(sent!.body.model).toBe('gpt-4o-mini');

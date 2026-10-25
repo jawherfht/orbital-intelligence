@@ -16,6 +16,8 @@ import { AGENT } from '../src/config.ts';
 import type { AgentEventContext, AgentOption, AgentRecommendation, DecisionStatus, Urgency } from '../src/types/agent.ts';
 
 export const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+/** Bump when options or policy change, so older decisions are not reused for new requests. */
+export const AGENT_POLICY_VERSION = 2;
 const MANEUVERABLE = new Set(['payload', 'station']);
 
 /**
@@ -26,56 +28,75 @@ export function alongTrackDeltaV(missKm: number, leadS: number): number {
   return (missKm * 1000) / (3 * leadS);
 }
 
-/** All actions the agent may choose from, with computed values only. */
+/** Decision tier from the minimum computed distance (DECISIONS D29). */
+export function tierOf(ctx: AgentEventContext): Urgency {
+  if (ctx.minDistanceKm < AGENT.autoExecuteKm) return 'critical';
+  if (ctx.minDistanceKm < AGENT.burnConsiderKm) return 'elevated';
+  return 'routine';
+}
+
+function burnOptions(ctx: AgentEventContext, side: AgentEventContext['primary'], key: 'p' | 's'): AgentOption[] {
+  if (!MANEUVERABLE.has(side.category)) return [];
+  const burnTimeMs = Math.max(ctx.nowMs + 10 * 60_000, ctx.tcaMs - 2 * 3_600_000);
+  const leadS = (ctx.tcaMs - burnTimeMs) / 1000;
+  if (leadS < AGENT.minLeadMinutes * 60) return [];
+  const out: AgentOption[] = [];
+  for (const target of AGENT.targetMissKm) {
+    if (target <= ctx.minDistanceKm) continue;
+    const dv = alongTrackDeltaV(target, leadS);
+    if (dv > AGENT.maxDeltaVMs) continue;
+    out.push({
+      id: `burn_${key}_${target}km`,
+      kind: 'along_track_burn',
+      label: `Along-track burn of ${dv.toFixed(3)} m/s on ${side.name}, ${(leadS / 3600).toFixed(1)} h before TCA`,
+      deltaVMs: Number(dv.toFixed(4)),
+      burnTimeMs,
+      estimatedMissKm: target,
+    });
+  }
+  return out;
+}
+
+/**
+ * Actions the agent may choose from, with computed values only. What is
+ * offered depends on the tier, so the LLM cannot pick a passive action for a
+ * very close approach:
+ *   critical (< autoExecuteKm): burns only (if no object can manoeuvre: monitor + data request);
+ *   elevated (< burnConsiderKm): burns, monitor, and a tracking update if the TCA is far enough;
+ *   routine: monitor, and a tracking update if the TCA is far enough.
+ * Burns are computed for whichever object can manoeuvre (payload or station).
+ */
 export function computeOptions(ctx: AgentEventContext): AgentOption[] {
-  const options: AgentOption[] = [{ id: 'monitor', kind: 'monitor', label: 'Keep monitoring; re-screen when new element sets are published' }];
+  const tier = tierOf(ctx);
+  const burns = [...burnOptions(ctx, ctx.primary, 'p'), ...burnOptions(ctx, ctx.secondary, 's')];
+  const hoursToTca = (ctx.tcaMs - ctx.nowMs) / 3_600_000;
   const maxAge = Math.max(ctx.primary.dataAgeDays, ctx.secondary.dataAgeDays);
-  options.push({
+  const monitor: AgentOption = { id: 'monitor', kind: 'monitor', label: 'Keep monitoring; re-screen when new element sets are published' };
+  const update: AgentOption = {
     id: 'request_update',
     kind: 'request_tracking_update',
-    label: `Request fresher tracking data before deciding (oldest element set: ${maxAge.toFixed(1)} days)`,
-  });
-  if (MANEUVERABLE.has(ctx.primary.category)) {
-    const burnTimeMs = Math.max(ctx.nowMs + 10 * 60_000, ctx.tcaMs - 2 * 3_600_000);
-    const leadS = (ctx.tcaMs - burnTimeMs) / 1000;
-    if (leadS >= AGENT.minLeadMinutes * 60) {
-      for (const target of AGENT.targetMissKm) {
-        if (target <= ctx.minDistanceKm) continue;
-        const dv = alongTrackDeltaV(target, leadS);
-        if (dv > AGENT.maxDeltaVMs) continue;
-        options.push({
-          id: `burn_${target}km`,
-          kind: 'along_track_burn',
-          label: `Along-track burn of ${dv.toFixed(3)} m/s on ${ctx.primary.name}, ${(leadS / 3600).toFixed(1)} h before TCA`,
-          deltaVMs: Number(dv.toFixed(4)),
-          burnTimeMs,
-          estimatedMissKm: target,
-        });
-      }
-    }
-  }
-  return options;
+    label: `Request fresher tracking data and re-screen (oldest element set: ${maxAge.toFixed(1)} days; TCA in ${hoursToTca.toFixed(1)} h)`,
+  };
+  const updateUseful = hoursToTca >= AGENT.updateMinLeadHours;
+  if (tier === 'critical') return burns.length ? burns : [monitor, update];
+  if (tier === 'elevated') return [...burns, monitor, ...(updateUseful ? [update] : [])];
+  return [monitor, ...(updateUseful ? [update] : [])];
 }
 
 /** Deterministic choice used when the LLM is unavailable. */
 export function ruleBasedChoice(ctx: AgentEventContext, options: AgentOption[], reason: string): AgentRecommendation {
+  const tier = tierOf(ctx);
   const burns = options.filter((o) => o.kind === 'along_track_burn');
   const maxAge = Math.max(ctx.primary.dataAgeDays, ctx.secondary.dataAgeDays);
+  // Smallest Δv reaching the largest target among burns.
+  const best = [...burns].sort((a, b) => (b.estimatedMissKm ?? 0) - (a.estimatedMissKm ?? 0) || (a.deltaVMs ?? 0) - (b.deltaVMs ?? 0))[0];
   let optionId = 'monitor';
-  let urgency: Urgency = 'routine';
-  if (ctx.minDistanceKm < AGENT.autoExecuteKm && burns.length) {
-    optionId = burns[burns.length - 1]!.id;
-    urgency = 'critical';
-  } else if (maxAge > AGENT.staleDataDays) {
-    optionId = 'request_update';
-    urgency = 'elevated';
-  } else if (ctx.minDistanceKm < ctx.thresholdKm / 2 && burns.length) {
-    optionId = burns[0]!.id;
-    urgency = 'elevated';
-  }
+  if (tier !== 'routine' && best) optionId = best.id;
+  else if (options.some((o) => o.id === 'request_update') && maxAge > AGENT.staleDataDays) optionId = 'request_update';
+  else if (!options.some((o) => o.id === 'monitor')) optionId = options[0]!.id;
   return {
     optionId,
-    urgency,
+    urgency: tier,
     rationale: `Rule-based choice: minimum computed distance ${ctx.minDistanceKm.toFixed(2)} km, oldest element set ${maxAge.toFixed(1)} days.`,
     caveats: 'Distances come from public element sets without covariance; true miss distance can differ by kilometres.',
     decidedBy: 'rules',
@@ -94,10 +115,14 @@ export function applyPolicy(ctx: AgentEventContext): { status: DecisionStatus; p
 const SYSTEM_PROMPT = `You are a decision-support agent for a satellite-tracking prototype.
 A screening found a "Potential Close Approach — Requires Verification" between two catalogued objects.
 Choose exactly ONE action from the provided options (by its id) and explain why in 2-4 sentences.
+The options were already filtered by distance tier (given as "tier"):
+- critical (< 1 km): only burns are offered; choose the burn that best protects the pair (larger margin first, then lower delta-v).
+- elevated (1-5 km): a burn is normally the right protective action; choose monitoring or a data request only if you explain why waiting is safe (e.g. TCA far away and fresh data expected before the burn time).
+- routine (>= 5 km): monitoring is usually enough; a data request is useful when element sets are old and the TCA is far away.
 Rules:
 - Use only the numbers given. Never invent values, probabilities or new manoeuvres.
-- Public orbital elements carry no covariance: never claim a probability of collision. Say when the computed distance is within the expected position error.
-- Prefer the smallest burn that reaches a safe distance when a burn is justified; prefer requesting fresher data when element sets are old and time allows.
+- Public orbital elements carry no covariance: never claim a probability of collision. You may say the distance is within the expected position error, but that argues for protecting, not for waiting.
+- A data request alone does not change the trajectory.
 - Debris and rocket bodies cannot manoeuvre.
 - Actions are simulated; a human may approve or reject them.`;
 
@@ -154,6 +179,7 @@ export class DecisionAgent {
         element_set_age_days: { primary: Number(ctx.primary.dataAgeDays.toFixed(2)), secondary: Number(ctx.secondary.dataAgeDays.toFixed(2)) },
         primary_altitude_km: ctx.primary.altitudeKm,
         simulated_test_scenario: ctx.simulated,
+        tier: tierOf(ctx),
       },
       expected_position_error_note: 'SGP4 with public elements: about 1 km at epoch, growing by roughly 1–3 km per day in low orbit.',
       options,

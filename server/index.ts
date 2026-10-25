@@ -23,7 +23,7 @@ import { loadEnv, readConfig } from './env.ts';
 import { SpaceTrackClient, SPACETRACK_LIMITS, UpstreamError } from './spacetrack.ts';
 import { N2yoClient, N2YO_LIMITS } from './n2yo.ts';
 import { TtlCache } from './rateLimit.ts';
-import { DecisionAgent, applyPolicy, computeOptions, parseEventContext } from './agent.ts';
+import { AGENT_POLICY_VERSION, DecisionAgent, applyPolicy, computeOptions, parseEventContext } from './agent.ts';
 import { DecisionStore } from './decisions.ts';
 import { AGENT, SOURCES } from '../src/config.ts';
 import { parseTleFile } from '../src/data/tle.ts';
@@ -70,12 +70,12 @@ async function agentApi(req: IncomingMessage, res: ServerResponse, parts: string
         if (e instanceof UpstreamError) throw e;
         return send(res, 400, { error: (e as Error).message, code: 'bad-request' });
       }
-      const existing = decisions.findOpenForEvent(ctx.eventId);
+      const existing = decisions.findOpenForEvent(ctx.eventId, AGENT_POLICY_VERSION);
       if (existing) return send(res, 200, { decision: existing, reused: true });
       const options = computeOptions(ctx);
       const recommendation = await agent.recommend(ctx, options);
       const { status, policy } = applyPolicy(ctx);
-      return send(res, 200, { decision: decisions.create(ctx, options, recommendation, status, policy), reused: false });
+      return send(res, 200, { decision: decisions.create(ctx, options, recommendation, status, policy, Date.now(), AGENT_POLICY_VERSION), reused: false });
     }
     if (req.method === 'POST' && area === 'decisions' && idOrAction && (action === 'approve' || action === 'reject')) {
       const body = (await readJsonBody(req)) as { comment?: unknown };

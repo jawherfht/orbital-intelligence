@@ -54,6 +54,8 @@ export interface DecisionRecord {
   status: DecisionStatus;
   /** Why the policy chose auto-execution or human approval. */
   policy: string;
+  /** Version of the option/policy rules that produced this decision (server/agent.ts AGENT_POLICY_VERSION). */
+  policyVersion?: number;
   resolvedAt?: number;
   resolvedBy?: 'operator' | 'auto-policy';
   comment?: string;
