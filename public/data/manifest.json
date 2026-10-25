@@ -1,0 +1,68 @@
+{
+  "generatedAt": "2026-10-25T00:24:42.426Z",
+  "groups": [
+    {
+      "group": "stations",
+      "file": "stations.json",
+      "count": 16,
+      "upstreamCount": 16,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/stations.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    },
+    {
+      "group": "weather",
+      "file": "weather.json",
+      "count": 72,
+      "upstreamCount": 72,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/weather.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    },
+    {
+      "group": "resource",
+      "file": "resource.json",
+      "count": 167,
+      "upstreamCount": 167,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/resource.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    },
+    {
+      "group": "science",
+      "file": "science.json",
+      "count": 46,
+      "upstreamCount": 46,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/science.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    },
+    {
+      "group": "amateur",
+      "file": "amateur.json",
+      "count": 95,
+      "upstreamCount": 95,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/amateur.3le",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:03:07Z"
+    },
+    {
+      "group": "geo",
+      "file": "geo.json",
+      "count": 569,
+      "upstreamCount": 569,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/geo.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    },
+    {
+      "group": "starlink",
+      "file": "starlink.json",
+      "count": 400,
+      "upstreamCount": 10641,
+      "source": "https://raw.githubusercontent.com/2048lr/celestrak-mirror/main/tle/starlink.tle",
+      "format": "mirror-tle",
+      "upstreamRefreshedAt": "2026-10-24T22:20:34Z"
+    }
+  ]
+}

@@ -60,3 +60,53 @@ export const DEBUG_MARKERS = [
   { id: 'null-island', label: '0°N 0°E', latDeg: 0, lonDeg: 0 },
   { id: 'tunis', label: 'Tunis 36.8°N 10.2°E', latDeg: 36.8, lonDeg: 10.2 },
 ] as const;
+
+/** Orbit classes (SPEC §4.4). */
+export const ORBIT_CLASS = {
+  leoMaxAltKm: 2000,
+  geoAltKm: 35786,
+  /** Mean altitude within this distance of 35 786 km counts as GEO. */
+  geoToleranceKm: 500,
+  heoMinEccentricity: 0.25,
+} as const;
+
+/**
+ * Groups downloaded by `npm run data:update` (SPEC §4.1).
+ * `sample` keeps a deterministic subset of very large groups (every k-th object by NORAD id).
+ * Groups are loaded in this order; an object present in several groups keeps the first.
+ */
+export const SNAPSHOT_GROUPS: readonly { group: string; label: string; sample?: number }[] = [
+  { group: 'stations', label: 'Space stations' },
+  { group: 'weather', label: 'Weather' },
+  { group: 'resource', label: 'Earth resources' },
+  { group: 'science', label: 'Science' },
+  { group: 'gnss', label: 'GNSS' },
+  { group: 'amateur', label: 'Amateur radio' },
+  { group: 'geo', label: 'Geostationary' },
+  { group: 'starlink', label: 'Starlink (sample)', sample: 400 },
+];
+
+/** Upstream URLs (SPEC §4.1, DECISIONS D20). */
+export const SOURCES = {
+  celestrakGroup: (group: string) => `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=JSON`,
+  /**
+   * Public GitHub mirror of CelesTrak GP data (TLE format), refreshed every
+   * 30 min by a GitHub Actions workflow that downloads
+   * celestrak.org/NORAD/elements/gp.php?GROUP=<group>&FORMAT=tle.
+   * Used only when CelesTrak itself is unreachable.
+   */
+  mirrorRepo: 'https://github.com/2048lr/celestrak-mirror',
+  mirrorRaw: 'https://raw.githubusercontent.com/2048lr/celestrak-mirror/main',
+  /** Group → file in the mirror; groups absent from the mirror are skipped. */
+  mirrorFiles: {
+    stations: 'tle/stations.tle',
+    weather: 'tle/weather.tle',
+    resource: 'tle/resource.tle',
+    science: 'tle/science.tle',
+    amateur: 'tle/amateur.3le',
+    geo: 'tle/geo.tle',
+    starlink: 'tle/starlink.tle',
+    oneweb: 'tle/oneweb.tle',
+    military: 'tle/military.tle',
+  } as Record<string, string>,
+} as const;
