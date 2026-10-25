@@ -16,6 +16,7 @@ export interface AgentEventContext {
   simulated: boolean;
 }
 
+/** 'request_tracking_update' only appears in decisions made before DECISIONS D31. */
 export type AgentActionKind = 'monitor' | 'request_tracking_update' | 'along_track_burn';
 
 /** One action the code computed; the LLM can only pick one of these. */

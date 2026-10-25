@@ -160,10 +160,6 @@ export const AGENT = {
   targetMissKm: [2, 5] as readonly number[],
   /** Burn no later than this long before TCA, minutes. */
   minLeadMinutes: 30,
-  /** Element sets older than this suggest asking for a tracking update first, days. */
-  staleDataDays: 2,
   /** Below this minimum computed distance a burn is offered (and preferred), km. */
   burnConsiderKm: 5,
-  /** A tracking update is only offered when the TCA is at least this far away (time to receive new data), hours. */
-  updateMinLeadHours: 12,
 } as const;

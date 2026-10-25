@@ -86,7 +86,6 @@ Remaining limit: two separate minima in the same 60 s interval would be merged. 
 
 1. **Options computed by the code** for one event:
    * **monitor**;
-   * **request fresher tracking data**;
    * for a manoeuvrable primary (payload or station), **along-track burns** sized for target miss distances of 2 and 5 km.
      * Sizing uses the first-order Clohessy–Wiltshire secular drift, Δx ≈ 3·Δv·t.
      * The burn happens 2 h before the TCA (no earlier than 10 min from now), with a lead of at least 30 min and Δv ≤ 2 m/s.

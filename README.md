@@ -25,7 +25,7 @@ Credentials for Space-Track and N2YO stay in a small local server (`server/`, no
 | Event timeline | ✅ Optional | Click an event → clock jumps to the TCA, both arcs are highlighted, distance plot |
 | Explanations | ✅ Optional | Deterministic texts with **Computed** / **Reference** badges; `ExplanationProvider` interface for a future assistant (no LLM) |
 | Demo mode | ✅ | One click, fully offline, 5 captioned steps |
-| Decision agent (LLM) | ✅ | On each potential close approach, **gpt-4o-mini** picks the best action among options computed by the code (monitor, request fresher tracking, sized along-track burn). **Human approval** is required; below **1 km** the action is executed automatically (simulated). Full history of approved, rejected and auto-executed decisions, exportable as JSON |
+| Decision agent (LLM) | ✅ | On each potential close approach, **gpt-4o-mini** picks the best action among options computed by the code (sized along-track burn, or keep monitoring). **Human approval** is required; below **1 km** the action is executed automatically (simulated). Full history of approved, rejected and auto-executed decisions, exportable as JSON |
 | Multi-source verification | ✅ | **Verify** tab: CelesTrak vs Space-Track (epoch, element and position differences, history; option to use the newer set) and N2YO predicted positions vs our SGP4 |
 | Maneuver optimizer | ⛔ Later | Out of scope (SPEC §8.4) |
 

@@ -17,7 +17,7 @@ import type { AgentEventContext, AgentOption, AgentRecommendation, DecisionStatu
 
 export const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 /** Bump when options or policy change, so older decisions are not reused for new requests. */
-export const AGENT_POLICY_VERSION = 2;
+export const AGENT_POLICY_VERSION = 3;
 const MANEUVERABLE = new Set(['payload', 'station']);
 
 /**
@@ -60,27 +60,19 @@ function burnOptions(ctx: AgentEventContext, side: AgentEventContext['primary'],
 /**
  * Actions the agent may choose from, with computed values only. What is
  * offered depends on the tier, so the LLM cannot pick a passive action for a
- * very close approach:
- *   critical (< autoExecuteKm): burns only (if no object can manoeuvre: monitor + data request);
- *   elevated (< burnConsiderKm): burns, monitor, and a tracking update if the TCA is far enough;
- *   routine: monitor, and a tracking update if the TCA is far enough.
+ * very close approach (DECISIONS D30, D31 — no data-request option):
+ *   critical (< autoExecuteKm): burns only (if no object can manoeuvre: monitor);
+ *   elevated (< burnConsiderKm): burns and monitor;
+ *   routine: monitor.
  * Burns are computed for whichever object can manoeuvre (payload or station).
  */
 export function computeOptions(ctx: AgentEventContext): AgentOption[] {
   const tier = tierOf(ctx);
   const burns = [...burnOptions(ctx, ctx.primary, 'p'), ...burnOptions(ctx, ctx.secondary, 's')];
-  const hoursToTca = (ctx.tcaMs - ctx.nowMs) / 3_600_000;
-  const maxAge = Math.max(ctx.primary.dataAgeDays, ctx.secondary.dataAgeDays);
   const monitor: AgentOption = { id: 'monitor', kind: 'monitor', label: 'Keep monitoring; re-screen when new element sets are published' };
-  const update: AgentOption = {
-    id: 'request_update',
-    kind: 'request_tracking_update',
-    label: `Request fresher tracking data and re-screen (oldest element set: ${maxAge.toFixed(1)} days; TCA in ${hoursToTca.toFixed(1)} h)`,
-  };
-  const updateUseful = hoursToTca >= AGENT.updateMinLeadHours;
-  if (tier === 'critical') return burns.length ? burns : [monitor, update];
-  if (tier === 'elevated') return [...burns, monitor, ...(updateUseful ? [update] : [])];
-  return [monitor, ...(updateUseful ? [update] : [])];
+  if (tier === 'critical') return burns.length ? burns : [monitor];
+  if (tier === 'elevated') return [...burns, monitor];
+  return [monitor];
 }
 
 /** Deterministic choice used when the LLM is unavailable. */
@@ -88,12 +80,9 @@ export function ruleBasedChoice(ctx: AgentEventContext, options: AgentOption[], 
   const tier = tierOf(ctx);
   const burns = options.filter((o) => o.kind === 'along_track_burn');
   const maxAge = Math.max(ctx.primary.dataAgeDays, ctx.secondary.dataAgeDays);
-  // Smallest Δv reaching the largest target among burns.
+  // Largest margin first, then the smallest delta-v.
   const best = [...burns].sort((a, b) => (b.estimatedMissKm ?? 0) - (a.estimatedMissKm ?? 0) || (a.deltaVMs ?? 0) - (b.deltaVMs ?? 0))[0];
-  let optionId = 'monitor';
-  if (tier !== 'routine' && best) optionId = best.id;
-  else if (options.some((o) => o.id === 'request_update') && maxAge > AGENT.staleDataDays) optionId = 'request_update';
-  else if (!options.some((o) => o.id === 'monitor')) optionId = options[0]!.id;
+  const optionId = tier !== 'routine' && best ? best.id : (options.find((o) => o.id === 'monitor') ?? options[0]!).id;
   return {
     optionId,
     urgency: tier,
@@ -117,12 +106,11 @@ A screening found a "Potential Close Approach — Requires Verification" between
 Choose exactly ONE action from the provided options (by its id) and explain why in 2-4 sentences.
 The options were already filtered by distance tier (given as "tier"):
 - critical (< 1 km): only burns are offered; choose the burn that best protects the pair (larger margin first, then lower delta-v).
-- elevated (1-5 km): a burn is normally the right protective action; choose monitoring or a data request only if you explain why waiting is safe (e.g. TCA far away and fresh data expected before the burn time).
-- routine (>= 5 km): monitoring is usually enough; a data request is useful when element sets are old and the TCA is far away.
+- elevated (1-5 km): a burn is normally the right protective action; choose monitoring only if you explain why waiting is safe.
+- routine (>= 5 km): monitoring is enough.
 Rules:
 - Use only the numbers given. Never invent values, probabilities or new manoeuvres.
 - Public orbital elements carry no covariance: never claim a probability of collision. You may say the distance is within the expected position error, but that argues for protecting, not for waiting.
-- A data request alone does not change the trajectory.
 - Debris and rocket bodies cannot manoeuvre.
 - Actions are simulated; a human may approve or reject them.`;
 

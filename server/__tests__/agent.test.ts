@@ -38,7 +38,7 @@ describe('computed options', () => {
   it('sizes along-track burns with Δx ≈ 3·Δv·t (burn 2 h before TCA)', () => {
     expect(alongTrackDeltaV(5, 7200)).toBeCloseTo(0.2315, 4); // 5 km / (3 × 7200 s)
     const opts = computeOptions(ctx());
-    // 3.2 km = elevated tier; 2 km target already exceeded; TCA in 6 h < 12 h, so no data request.
+    // 3.2 km = elevated tier; the 2 km target is already exceeded.
     expect(opts.map((o) => o.id)).toEqual(['burn_p_5km', 'monitor']);
     const burn = opts.find((o) => o.id === 'burn_p_5km')!;
     expect(burn.deltaVMs).toBeCloseTo(0.2315, 3);
@@ -57,10 +57,10 @@ describe('options by distance tier', () => {
     expect(ids).toEqual(['burn_p_2km', 'burn_p_5km']);
   });
 
-  it('critical with no manoeuvrable object: monitoring and a data request remain', () => {
+  it('critical with no manoeuvrable object: only monitoring remains', () => {
     const debris = { ...ctx().primary, category: 'debris' };
     const ids = computeOptions(ctx({ minDistanceKm: 0.5, primary: debris })).map((o) => o.id);
-    expect(ids).toEqual(['monitor', 'request_update']);
+    expect(ids).toEqual(['monitor']);
   });
 
   it('burns are computed for the secondary when only it can manoeuvre', () => {
@@ -68,9 +68,12 @@ describe('options by distance tier', () => {
     expect(computeOptions(c).map((o) => o.id)).toEqual(['burn_s_5km', 'monitor']);
   });
 
-  it('a data request is offered only when the TCA leaves time to receive new data', () => {
-    expect(computeOptions(ctx({ minDistanceKm: 7.5, tcaMs: NOW + 22 * 3_600_000 })).map((o) => o.id)).toEqual(['monitor', 'request_update']);
-    expect(computeOptions(ctx({ minDistanceKm: 7.5, tcaMs: NOW + 6 * 3_600_000 })).map((o) => o.id)).toEqual(['monitor']);
+  it('never offers a tracking-data request (DECISIONS D31)', () => {
+    for (const d of [0.4, 3, 7.5]) {
+      const ids = computeOptions(ctx({ minDistanceKm: d, tcaMs: NOW + 22 * 3_600_000 })).map((o) => o.id);
+      expect(ids).not.toContain('request_update');
+    }
+    expect(computeOptions(ctx({ minDistanceKm: 7.5 })).map((o) => o.id)).toEqual(['monitor']);
   });
 });
 

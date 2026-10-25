@@ -187,3 +187,17 @@ Constat de l'utilisateur, avec gpt-4o-mini connecté : l'agent répondait **touj
 - **Prompt** : il explique ces niveaux et rappelle qu'une demande de données ne change pas la trajectoire.
 - **Versions** : `AGENT_POLICY_VERSION = 2` ; une décision prise avec d'anciennes règles n'est plus réutilisée.
 - **Tests** : 4 nouveaux tests, 68 au total.
+
+### D31 — Suppression de l'option « Request fresher tracking data »
+
+Demande de l'utilisateur : l'agent ne doit plus proposer « Request fresher tracking data ». Cette option est retirée du code et du prompt.
+
+| Distance minimale calculée | Options proposées |
+|---|---|
+| < 1 km | poussées uniquement ; surveiller si aucun objet ne peut manœuvrer |
+| 1 à 5 km | poussées et surveiller |
+| ≥ 5 km | surveiller |
+
+- `AGENT_POLICY_VERSION = 3` : les anciennes décisions ne sont plus réutilisées.
+- Elles restent visibles dans l'historique ; supprimer `data/decisions.json` pour repartir de zéro.
+- Un test vérifie que l'option n'est plus jamais proposée.
