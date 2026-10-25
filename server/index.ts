@@ -134,12 +134,38 @@ function serveStatic(res: ServerResponse, url: URL) {
   res.end(readFileSync(file));
 }
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed', code: 'bad-request' });
   if (url.pathname.startsWith('/api/orbital/')) return void api(res, url);
   return serveStatic(res, url);
-}).listen(config.port, config.host, () => {
+});
+
+// Port already taken: reuse a running instance of this server (exit 0, scripts/dev.mjs keeps Vite running),
+// otherwise explain how to free the port instead of crashing with a stack trace.
+server.on('error', async (err: NodeJS.ErrnoException) => {
+  if (err.code !== 'EADDRINUSE') throw err;
+  const base = `http://${config.host}:${config.port}`;
+  try {
+    const r = await fetch(`${base}/api/orbital/status`, { signal: AbortSignal.timeout(2000) });
+    const body = (await r.json()) as Partial<SourceStatus>;
+    if (body.celestrak && body.spacetrack && body.n2yo) {
+      console.log(`Orbital data server already running on ${base} — reusing it.`);
+      console.log('  To apply .env changes, stop the other instance first (close its window), or on Windows run:');
+      console.log(`  Stop-Process -Id (Get-NetTCPConnection -LocalPort ${config.port} -State Listen).OwningProcess -Force`);
+      process.exit(0);
+    }
+  } catch {
+    // Not our server.
+  }
+  console.error(`Port ${config.port} is already used by another program.`);
+  console.error('  Windows PowerShell:  Stop-Process -Id (Get-NetTCPConnection -LocalPort ' + config.port + ' -State Listen).OwningProcess -Force');
+  console.error('  macOS / Linux:       kill $(lsof -t -i:' + config.port + ')');
+  console.error('  Or choose another port: set ORBITAL_SERVER_PORT in .env (and the /api/orbital target in vite.config.ts).');
+  process.exit(1);
+});
+
+server.listen(config.port, config.host, () => {
   console.log(`Orbital data server on http://${config.host}:${config.port}`);
   console.log(`  Space-Track: ${spacetrack.configured ? 'configured' : 'not configured (set SPACETRACK_IDENTITY / SPACETRACK_PASSWORD in .env)'}`);
   console.log(`  N2YO:        ${n2yo.configured ? 'configured' : 'not configured (set N2YO_API_KEY in .env)'}`);
