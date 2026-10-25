@@ -33,7 +33,7 @@ export function LayerFilters() {
 
   return (
     <div className="flex flex-col gap-3 text-xs">
-      <p className="label lg:hidden">{sourceLabel(source)}</p>
+      <p className="label 2xl:hidden">{sourceLabel(source)}</p>
       <div>
         <div className="label mb-1.5">{en.layers.categories}</div>
         <div className="flex flex-wrap gap-1.5">

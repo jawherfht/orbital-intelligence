@@ -18,6 +18,7 @@ import { LayerFilters } from './ui/LayerFilters';
 import { ProximityPanel } from './ui/ProximityPanel';
 import { EventTimeline } from './ui/EventTimeline';
 import { LimitationsModal } from './ui/LimitationsModal';
+import { AgentModal } from './ui/DecisionPanel';
 import { HoverTooltip } from './ui/HoverTooltip';
 import { DemoCaption } from './ui/DemoCaption';
 import { useOrbitalStore } from './store/useOrbitalStore';
@@ -180,6 +181,7 @@ export function OrbitalIntelligenceModule({ initialGroups, initialSelectedNoradI
       </div>
       <HoverTooltip />
       <LimitationsModal />
+      <AgentModal />
     </div>
   );
 }

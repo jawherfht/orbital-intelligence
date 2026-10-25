@@ -570,6 +570,21 @@ body,
     padding: 16px;
     background: rgba(2, 4, 8, 0.55);
   }
+  .modal-wide {
+    width: min(1040px, 100%) !important;
+  }
+  .agent-count {
+    display: inline-flex;
+    min-width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--warn);
+    color: #05070d;
+    font-size: 0.66rem;
+    font-weight: 700;
+  }
   .modal {
     width: min(640px, 100%);
     padding: 16px 18px;

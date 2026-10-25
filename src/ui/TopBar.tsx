@@ -7,6 +7,7 @@ import { useScreeningStore } from '../store/useScreeningStore';
 import { useDemoStore } from '../store/useDemoStore';
 import type { DataSourceInfo } from '../types/orbital';
 import { fmtUtc } from './format';
+import { AgentButton } from './DecisionPanel';
 
 function formatUtc(d: Date): { date: string; time: string } {
   const iso = d.toISOString();
@@ -64,7 +65,7 @@ function DataSource() {
 
   return (
     <div className="hidden min-w-0 flex-col items-center leading-tight lg:flex">
-      <span className="label truncate max-w-[520px]" title={source?.origin}>
+      <span className="label hidden max-w-[520px] truncate 2xl:block" title={source?.origin}>
         {status === 'loading' ? en.topBar.dataSourceLoading : sourceLabel(source)}
       </span>
       <span className="mono text-[0.68rem] text-[var(--text-dim)]">
@@ -102,6 +103,7 @@ export function TopBar() {
         <button type="button" className={`chip ${demoRunning ? 'chip-active' : 'chip-accent'}`} onClick={demoRunning ? stopDemo : startDemo}>
           {demoRunning ? en.topBar.stopDemo : en.topBar.demo}
         </button>
+        <AgentButton />
         <button type="button" className="chip hidden sm:inline-flex" onClick={() => setLimitationsOpen(true)}>
           {en.topBar.methods}
         </button>

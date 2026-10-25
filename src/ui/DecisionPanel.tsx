@@ -9,6 +9,7 @@ import { AGENT, COLORS } from '../config';
 import type { CloseApproachEvent } from '../screening/closeApproach';
 import type { DecisionRecord, DecisionStatus } from '../types/agent';
 import { decisionFor, useAgentStore } from '../store/useAgentStore';
+import { useScreeningStore } from '../store/useScreeningStore';
 import { fmtUtc } from './format';
 
 const STATUS_COLOR: Record<DecisionStatus, string> = {
@@ -185,5 +186,91 @@ export function DecisionLog() {
         </>
       )}
     </section>
+  );
+}
+
+/** Top-bar button with the number of decisions awaiting approval. */
+export function AgentButton() {
+  const pending = useAgentStore((s) => s.decisions.filter((d) => d.status === 'pending').length);
+  const setOpen = useAgentStore((s) => s.setOpen);
+  const refresh = useAgentStore((s) => s.refresh);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  return (
+    <button type="button" className={`chip ${pending ? 'chip-warn' : 'chip-accent'}`} onClick={() => setOpen(true)} aria-label={`${en.agent.button}${pending ? `, ${en.agent.pending(pending)}` : ''}`}>
+      {en.agent.button}
+      {pending > 0 && <span className="agent-count">{pending}</span>}
+    </button>
+  );
+}
+
+/** Full agent window: LLM status, events of the last screening with their decisions, history. */
+export function AgentModal() {
+  const open = useAgentStore((s) => s.open);
+  const setOpen = useAgentStore((s) => s.setOpen);
+  const status = useAgentStore((s) => s.status);
+  const analyse = useAgentStore((s) => s.analyse);
+  const events = useScreeningStore((s) => s.events);
+  const thresholdKm = useScreeningStore((s) => s.lastRun?.thresholdKm ?? s.thresholdKm);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
+
+  if (!open) return null;
+  const sorted = [...events].sort((a, b) => a.minDistanceKm - b.minDistanceKm);
+  return (
+    <div className="modal-backdrop" onClick={() => setOpen(false)}>
+      <div className="panel modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="oi-agent-title" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="oi-agent-title" className="text-base font-semibold">
+              {en.agent.windowTitle}
+            </h2>
+            <p className={`mt-0.5 text-xs ${status?.configured ? 'text-[var(--ok)]' : 'text-[var(--warn)]'}`}>
+              {status === null ? en.agent.serverOff : status.configured ? en.agent.llmOn(status.model) : en.agent.llmOff}
+            </p>
+          </div>
+          <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label={en.agent.close}>
+            ×
+          </button>
+        </div>
+        <div className="scroll-thin mt-3 grid max-h-[72vh] gap-4 overflow-y-auto pr-1 md:grid-cols-2">
+          <section className="flex flex-col gap-2 text-xs">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="label">{en.agent.current}</span>
+              {sorted.length > 1 && (
+                <button type="button" className="link text-[0.68rem]" onClick={() => void (async () => { for (const ev of sorted) await analyse(ev, thresholdKm); })()}>
+                  {en.agent.analyseAll}
+                </button>
+              )}
+            </div>
+            {sorted.length === 0 && <p className="text-[var(--text-dim)]">{en.agent.noEvents}</p>}
+            {sorted.map((ev) => (
+              <div key={ev.id} className="event-card">
+                <div className="text-[0.7rem] font-semibold uppercase tracking-wide" style={{ color: ev.minDistanceKm < AGENT.autoExecuteKm ? COLORS.tight : COLORS.approach }}>
+                  {en.proximity.alertTitle}
+                </div>
+                {ev.simulated && <div className="banner-sim mt-1">{en.proximity.simulatedBanner}</div>}
+                <div className="mt-1 truncate">
+                  {ev.primaryName} × {ev.secondaryName}
+                </div>
+                <div className="mono text-[0.68rem] text-[var(--text-dim)]">
+                  {ev.minDistanceKm.toFixed(2)} km · TCA {fmtUtc(ev.tcaMs)} · {ev.relSpeedKmS.toFixed(2)} km/s
+                </div>
+                <AgentInline ev={ev} thresholdKm={thresholdKm} />
+              </div>
+            ))}
+          </section>
+          <DecisionLog />
+        </div>
+      </div>
+    </div>
   );
 }

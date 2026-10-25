@@ -7,6 +7,8 @@ import { AGENT } from '../config';
 import type { AgentEventContext, DecisionRecord } from '../types/agent';
 import type { CloseApproachEvent } from '../screening/closeApproach';
 import { fetchDecisions, requestDecision, resolveDecision } from '../data/agentClient';
+import { fetchStatus } from '../data/sourcesClient';
+import type { SourceStatus } from '../types/sources';
 import { useOrbitalStore } from './useOrbitalStore';
 import { getSimDate } from './simulationClock';
 import { stateAt } from '../orbital/propagate';
@@ -17,6 +19,12 @@ interface AgentState {
   analysing: Set<string>;
   errors: Record<string, string>;
   historyError: string | null;
+  /** Agent window (top-bar button). */
+  open: boolean;
+  /** LLM configuration reported by the server, or null if the server is unreachable. */
+  status: SourceStatus['agent'] | null;
+  setOpen: (v: boolean) => void;
+  loadStatus: () => Promise<void>;
   analyse: (ev: CloseApproachEvent, thresholdKm: number) => Promise<DecisionRecord | null>;
   /** Closest events first, at most AGENT.autoAnalyzeTop (called after each screening run). */
   autoAnalyse: (events: CloseApproachEvent[], thresholdKm: number) => Promise<void>;
@@ -55,6 +63,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   analysing: new Set(),
   errors: {},
   historyError: null,
+  open: false,
+  status: null,
+
+  setOpen: (open) => {
+    set({ open });
+    if (open) {
+      void get().loadStatus();
+      void get().refresh();
+    }
+  },
+
+  loadStatus: async () => {
+    try {
+      set({ status: (await fetchStatus()).agent ?? null });
+    } catch {
+      set({ status: null });
+    }
+  },
 
   analyse: async (ev, thresholdKm) => {
     if (get().analysing.has(ev.id)) return null;
@@ -77,7 +103,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   autoAnalyse: async (events, thresholdKm) => {
     const top = [...events].sort((a, b) => a.minDistanceKm - b.minDistanceKm).slice(0, AGENT.autoAnalyzeTop);
-    for (const ev of top) await get().analyse(ev, thresholdKm);
+    let made = 0;
+    for (const ev of top) if (await get().analyse(ev, thresholdKm)) made += 1;
+    // Show the agent window as soon as it has something to decide or report.
+    if (made > 0) get().setOpen(true);
   },
 
   refresh: async () => {
