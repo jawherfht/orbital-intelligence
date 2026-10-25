@@ -142,3 +142,24 @@ export const INTERACTION = {
   clickMaxMovePx: 5,
   cameraFocusMs: 1200,
 } as const;
+
+/**
+ * Decision agent for potential close approaches (DECISIONS D29).
+ * The LLM only chooses among options computed by the code; the policy below is deterministic.
+ */
+export const AGENT = {
+  /** OpenAI model (required by the user). */
+  model: 'gpt-4o-mini',
+  /** Below this minimum computed distance the recommended action is executed automatically (simulated). */
+  autoExecuteKm: 1,
+  /** After a screening run, the agent analyses at most this many events (closest first) automatically. */
+  autoAnalyzeTop: 3,
+  /** Upper bound of any proposed manoeuvre, m/s. */
+  maxDeltaVMs: 2,
+  /** Target miss distances used to size along-track manoeuvre options, km. */
+  targetMissKm: [2, 5] as readonly number[],
+  /** Burn no later than this long before TCA, minutes. */
+  minLeadMinutes: 30,
+  /** Element sets older than this suggest asking for a tracking update first, days. */
+  staleDataDays: 2,
+} as const;

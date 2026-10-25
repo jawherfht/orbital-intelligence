@@ -9,6 +9,7 @@ import ScreeningWorker from '../screening/screening.worker.ts?worker';
 import { syntheticCrossingPair } from '../screening/synthetic';
 import { ommToRecord } from '../data/catalog';
 import { useOrbitalStore } from './useOrbitalStore';
+import { useAgentStore } from './useAgentStore';
 import { getSimDate, useClock } from './simulationClock';
 
 export type ScreeningMode = 'selected' | 'group';
@@ -118,6 +119,8 @@ export const useScreeningStore = create<ScreeningState>((set, get) => ({
           capped: m.capped || groupCapped,
           lastRun: { startMs, windowHours, thresholdKm },
         });
+        // Decision agent on the closest events (DECISIONS D29); runs in the background.
+        if (m.events.length) void useAgentStore.getState().autoAnalyse(m.events, thresholdKm);
         resolve(m.events);
       };
       w.onerror = (e) => {
@@ -154,7 +157,8 @@ export const useScreeningStore = create<ScreeningState>((set, get) => ({
     const recs = syntheticCrossingPair({ crossingMs: crossing })
       .map((o) => ommToRecord(o, 'simulated'))
       .filter((r): r is NonNullable<typeof r> => r !== null)
-      .map((r) => ({ ...r, simulated: true, category: 'unknown' as const }));
+      // SIM-A behaves as a manoeuvrable payload and SIM-B as debris, so the decision agent can be demonstrated.
+      .map((r, i) => ({ ...r, simulated: true, category: i === 0 ? ('payload' as const) : ('debris' as const) }));
     useOrbitalStore.getState().setSimulatedObjects(recs);
     set({ simulatedActive: true });
     return get().run();

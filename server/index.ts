@@ -6,12 +6,16 @@
  *   GET /api/orbital/spacetrack/gp/:norad            latest Space-Track GP element set, cached 1 h
  *   GET /api/orbital/spacetrack/history/:norad?limit=N   last N element sets (gp_history), cached 1 h
  *   GET /api/orbital/n2yo/positions/:norad?seconds=S&lat=&lng=&alt=   N2YO predicted positions, cached 30 s
+ *   POST /api/orbital/agent/decide                   decision agent on one close approach (DECISIONS D29)
+ *   GET  /api/orbital/decisions                      decision history
+ *   POST /api/orbital/decisions/:id/approve|reject   human approval / rejection, body {"comment": "..."}
  *   anything else                                    the production build in dist/ (npm start)
  *
- * Secrets are read from .env (SPACETRACK_IDENTITY, SPACETRACK_PASSWORD, N2YO_API_KEY)
- * and never sent to the browser or written to logs.
+ * Secrets are read from .env (SPACETRACK_IDENTITY, SPACETRACK_PASSWORD, N2YO_API_KEY,
+ * OPENAI_API_KEY) and never sent to the browser or written to logs. When the
+ * project sits inside another repository (e.g. HackLumen), ../.env is read too.
  */
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +23,9 @@ import { loadEnv, readConfig } from './env.ts';
 import { SpaceTrackClient, SPACETRACK_LIMITS, UpstreamError } from './spacetrack.ts';
 import { N2yoClient, N2YO_LIMITS } from './n2yo.ts';
 import { TtlCache } from './rateLimit.ts';
-import { SOURCES } from '../src/config.ts';
+import { DecisionAgent, applyPolicy, computeOptions, parseEventContext } from './agent.ts';
+import { DecisionStore } from './decisions.ts';
+import { AGENT, SOURCES } from '../src/config.ts';
 import { parseTleFile } from '../src/data/tle.ts';
 import { normalizeOmm, validateOmm } from '../src/data/validation.ts';
 import type { OmmRecord } from '../src/types/orbital.ts';
@@ -27,10 +33,64 @@ import type { SourceStatus } from '../src/types/sources.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 loadEnv(join(ROOT, '.env'));
+// Values already set win, so the project's own .env takes precedence over the parent one.
+loadEnv(join(ROOT, '..', '.env'));
 const config = readConfig();
 const spacetrack = new SpaceTrackClient(config.spacetrackIdentity, config.spacetrackPassword);
 const n2yo = new N2yoClient(config.n2yoApiKey);
 const celestrakCache = new TtlCache<{ origin: string; omm: OmmRecord[] }>(2 * 3_600_000);
+const agent = new DecisionAgent(config.openaiApiKey);
+const decisions = new DecisionStore(join(ROOT, 'data', 'decisions.json'));
+
+async function readJsonBody(req: IncomingMessage, maxBytes = 64 * 1024): Promise<unknown> {
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > maxBytes) throw new UpstreamError('Request body too large', 'bad-request', 413);
+    chunks.push(chunk as Buffer);
+  }
+  if (!chunks.length) return {};
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new UpstreamError('Invalid JSON body', 'bad-request', 400);
+  }
+}
+
+async function agentApi(req: IncomingMessage, res: ServerResponse, parts: string[]) {
+  const [, , area, idOrAction, action] = parts;
+  try {
+    if (req.method === 'GET' && area === 'decisions' && !idOrAction) return send(res, 200, { decisions: decisions.list() });
+    if (req.method === 'POST' && area === 'agent' && idOrAction === 'decide') {
+      let ctx;
+      try {
+        ctx = parseEventContext(await readJsonBody(req));
+      } catch (e) {
+        if (e instanceof UpstreamError) throw e;
+        return send(res, 400, { error: (e as Error).message, code: 'bad-request' });
+      }
+      const existing = decisions.findOpenForEvent(ctx.eventId);
+      if (existing) return send(res, 200, { decision: existing, reused: true });
+      const options = computeOptions(ctx);
+      const recommendation = await agent.recommend(ctx, options);
+      const { status, policy } = applyPolicy(ctx);
+      return send(res, 200, { decision: decisions.create(ctx, options, recommendation, status, policy), reused: false });
+    }
+    if (req.method === 'POST' && area === 'decisions' && idOrAction && (action === 'approve' || action === 'reject')) {
+      const body = (await readJsonBody(req)) as { comment?: unknown };
+      try {
+        const rec = decisions.resolve(idOrAction, action === 'approve' ? 'approved' : 'rejected', typeof body.comment === 'string' ? body.comment : '');
+        return send(res, 200, { decision: rec });
+      } catch (e) {
+        return send(res, 409, { error: (e as Error).message, code: 'conflict' });
+      }
+    }
+    return send(res, 404, { error: 'Unknown endpoint', code: 'not-found' });
+  } catch (e) {
+    return fail(res, e);
+  }
+}
 
 function send(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -82,6 +142,7 @@ async function api(res: ServerResponse, url: URL) {
         celestrak: { available: true },
         spacetrack: { configured: spacetrack.configured, requestsLastHour: spacetrack.limiter.used(3_600_000), hourlyLimit: SPACETRACK_LIMITS.perHour },
         n2yo: { configured: n2yo.configured, transactionsLastHour: n2yo.limiter.used(3_600_000), hourlyLimit: N2YO_LIMITS.positionsPerHour },
+        agent: { configured: agent.configured, model: AGENT.model, autoExecuteKm: AGENT.autoExecuteKm },
       };
       return send(res, 200, status);
     }
@@ -136,6 +197,8 @@ function serveStatic(res: ServerResponse, url: URL) {
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'api' && parts[1] === 'orbital' && (parts[2] === 'agent' || parts[2] === 'decisions')) return void agentApi(req, res, parts);
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed', code: 'bad-request' });
   if (url.pathname.startsWith('/api/orbital/')) return void api(res, url);
   return serveStatic(res, url);
@@ -169,4 +232,5 @@ server.listen(config.port, config.host, () => {
   console.log(`Orbital data server on http://${config.host}:${config.port}`);
   console.log(`  Space-Track: ${spacetrack.configured ? 'configured' : 'not configured (set SPACETRACK_IDENTITY / SPACETRACK_PASSWORD in .env)'}`);
   console.log(`  N2YO:        ${n2yo.configured ? 'configured' : 'not configured (set N2YO_API_KEY in .env)'}`);
+  console.log(`  LLM agent:   ${agent.configured ? `configured (${AGENT.model})` : 'not configured (set OPENAI_API_KEY in .env) — rule-based decisions only'}`);
 });

@@ -25,6 +25,7 @@ Credentials for Space-Track and N2YO stay in a small local server (`server/`, no
 | Event timeline | ✅ Optional | Click an event → clock jumps to the TCA, both arcs are highlighted, distance plot |
 | Explanations | ✅ Optional | Deterministic texts with **Computed** / **Reference** badges; `ExplanationProvider` interface for a future assistant (no LLM) |
 | Demo mode | ✅ | One click, fully offline, 5 captioned steps |
+| Decision agent (LLM) | ✅ | On each potential close approach, **gpt-4o-mini** picks the best action among options computed by the code (monitor, request fresher tracking, sized along-track burn). **Human approval** is required; below **1 km** the action is executed automatically (simulated). Full history of approved, rejected and auto-executed decisions, exportable as JSON |
 | Multi-source verification | ✅ | **Verify** tab: CelesTrak vs Space-Track (epoch, element and position differences, history; option to use the newer set) and N2YO predicted positions vs our SGP4 |
 | Maneuver optimizer | ⛔ Later | Out of scope (SPEC §8.4) |
 
@@ -47,8 +48,11 @@ The app works without any key: CelesTrak needs none. To enable Space-Track and N
    SPACETRACK_IDENTITY=your-login
    SPACETRACK_PASSWORD=your-password
    N2YO_API_KEY=your-key
+   OPENAI_API_KEY=your-openai-key   # decision agent (model gpt-4o-mini)
    ```
-3. Restart `npm run dev`. The terminal prints `Space-Track: configured` and `N2YO: configured`.
+3. Restart `npm run dev`. The terminal prints `Space-Track: configured`, `N2YO: configured` and `LLM agent: configured (gpt-4o-mini)`.
+
+Without `OPENAI_API_KEY`, the decision agent still works with deterministic rules, and each decision says so. When the project sits inside another repository (e.g. HackLumen), the server also reads `OPENAI_API_KEY` from the parent folder's `.env`.
 
 `.env` is git-ignored. Never commit it. The server enforces each provider's limits: Space-Track 30 requests/min and 300/h with a 1 h cache, N2YO 1,000 transactions/h with a 30 s cache.
 
@@ -108,7 +112,8 @@ src/screening/                  pre-filter, close-approach search, screening wor
 src/scene/                      R3F scene: Earth, swarm, picking, halos, trails, camera, close-approach arcs
 src/ui/                         panels: top bar, search, info, explain, time, layers, proximity, timeline, chart, modal
 src/explain/                    ExplanationProvider (deterministic)
-server/                         local data server: CelesTrak proxy, Space-Track and N2YO clients, rate limits, caches
+server/                         local data server: CelesTrak proxy, Space-Track and N2YO clients, rate limits, caches,
+                                decision agent (gpt-4o-mini) and decision history (data/decisions.json)
 src/store/                      zustand stores: clock, catalog/selection, screening, UI, demo
 ```
 
@@ -124,6 +129,7 @@ src/store/                      zustand stores: clock, catalog/selection, screen
 | Resource | Source | Licence |
 |---|---|---|
 | Secondary orbital data | [Space-Track.org](https://www.space-track.org) (18th/19th Space Defense Squadron) | Free account, Space-Track user agreement |
+| Decision agent | [OpenAI](https://platform.openai.com) API, model gpt-4o-mini | Paid API, your own key |
 | Position verification | [N2YO](https://www.n2yo.com) REST API | Free API key, N2YO terms |
 | Orbital data | [CelesTrak](https://celestrak.org) (Dr T.S. Kelso), GP data. When CelesTrak is unreachable, it is relayed by [2048lr/celestrak-mirror](https://github.com/2048lr/celestrak-mirror) | Public data, see CelesTrak usage rules |
 | SGP4 propagation | [satellite.js](https://github.com/shashwatak/satellite-js) | MIT |

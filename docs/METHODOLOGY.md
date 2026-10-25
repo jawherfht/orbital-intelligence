@@ -82,6 +82,26 @@ Remaining limit: two separate minima in the same 60 s interval would be merged. 
 * The screening must find the event with TCA within ±2 s of that instant, and agree with a 50 ms brute-force scan (< 0.1 s, < 50 m).
 * A variant offset by 4 s along-track (miss distance ≈ 20–30 km) must not be reported at 10 km, and must be reported at 50 km.
 
+## 4b. Decision agent (DECISIONS D29)
+
+1. **Options computed by the code** for one event:
+   * **monitor**;
+   * **request fresher tracking data**;
+   * for a manoeuvrable primary (payload or station), **along-track burns** sized for target miss distances of 2 and 5 km.
+     * Sizing uses the first-order Clohessy–Wiltshire secular drift, Δx ≈ 3·Δv·t.
+     * The burn happens 2 h before the TCA (no earlier than 10 min from now), with a lead of at least 30 min and Δv ≤ 2 m/s.
+     * It is an order-of-magnitude sizing, not a manoeuvre plan.
+2. **Choice by gpt-4o-mini.**
+   * The model receives only these computed facts: distance, TCA, relative speed, data ages and options.
+   * It must return one `option_id` from a strict JSON-schema enum, with an urgency, a rationale and caveats.
+   * Any other id is rejected. If the LLM is unavailable, a deterministic rule decides and is labelled as such.
+3. **Policy.**
+   * Below 1 km of minimum computed distance, the chosen action is **executed automatically**, which is simulated and recorded as `auto-policy`.
+   * Otherwise it waits for a human **approval or rejection**.
+   * Every decision is kept in the history.
+
+The agent inherits the limits of §5: without covariance, a minimum computed distance is not a risk value. The agent is told to say when the distance is within the expected position error.
+
 ## 5. What the screening is not
 
 * **It is not a probability of collision.** A probability needs position covariance, which public GP data does not contain.

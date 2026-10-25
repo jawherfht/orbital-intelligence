@@ -420,7 +420,7 @@ body,
     background: rgba(245, 158, 11, 0.04);
     transition: border-color 200ms, background 200ms;
   }
-  .event-card button {
+  .event-card > button {
     background: none;
     border: none;
     color: inherit;

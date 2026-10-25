@@ -58,9 +58,17 @@ Légende : ✅ fait · 🟡 en cours · ⬜ à faire · ⚠️ en attente d'une 
 - ✅ 55 tests (clients serveur avec `fetch` simulé, validation, comparaisons)
 - ⚠️ Appels réels à Space-Track et N2YO à vérifier avec les identifiants de l'utilisateur (domaines bloqués dans l'environnement cloud)
 
+## Agent de décision LLM ✅ (2026-10-25, D29)
+- ✅ Options calculées par le code ; choix par gpt-4o-mini (JSON schema strict, enum des options) ; repli sur des règles, étiqueté comme tel
+- ✅ Politique : exécution automatique (simulée) sous 1 km, sinon approbation ou rejet humain avec commentaire
+- ✅ Analyse automatique des 3 événements les plus serrés après chaque screening, bouton « Ask agent » pour les autres
+- ✅ Historique persistant (`data/decisions.json`), filtres, export JSON
+- ✅ 64 tests ; parcours complet vérifié dans le navigateur (screening → décision → approbation → historique)
+- ⚠️ Appel réel à OpenAI à vérifier avec la clé de l'utilisateur (api.openai.com bloqué dans l'environnement cloud)
+
 ## Définition de « terminé » (SPEC §11)
 - ✅ `npm install && npm run dev` démarre sans erreur
-- ✅ `npm run build` et `npm test` passent (55 tests), sans erreur TypeScript
+- ✅ `npm run build` et `npm test` passent (64 tests), sans erreur TypeScript
 - ✅ M1 à M7 respectent leurs critères
 - ✅ Vocabulaire interdit absent (test automatique sur `en.ts` et sur tout `src/`)
 - ✅ Fonctionne hors ligne avec les snapshots

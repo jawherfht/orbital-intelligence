@@ -22,6 +22,7 @@ export interface ServerConfig {
   spacetrackIdentity: string;
   spacetrackPassword: string;
   n2yoApiKey: string;
+  openaiApiKey: string;
 }
 
 export function readConfig(): ServerConfig {
@@ -31,5 +32,6 @@ export function readConfig(): ServerConfig {
     spacetrackIdentity: process.env.SPACETRACK_IDENTITY ?? '',
     spacetrackPassword: process.env.SPACETRACK_PASSWORD ?? '',
     n2yoApiKey: process.env.N2YO_API_KEY ?? '',
+    openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   };
 }

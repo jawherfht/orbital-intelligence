@@ -144,3 +144,24 @@ Demande de l'utilisateur : utiliser trois API gratuites qui fournissent des donn
 - **Aucune valeur de remplacement** : sans clé, avec une limite atteinte ou une erreur réseau, l'interface affiche la raison (« not configured — add N2YO_API_KEY to .env… »), jamais un chiffre de substitution.
 - **Tests** : les clients serveur sont testés avec un `fetch` simulé qui suit les formats documentés (champs en chaînes de Space-Track, cookie, `{"Login":"Failed"}`, URL N2YO avec `&apiKey=`). Les valeurs orbitales proviennent du jeu ISS réel. **Limite** : depuis l'environnement cloud, space-track.org et api.n2yo.com sont bloqués (vérifié : « fetch failed »). Les appels réels n'ont donc pas pu être exécutés ici ; ils doivent être vérifiés sur une machine avec les identifiants de l'utilisateur.
 - Cette fonctionnalité répond à deux points que SPEC §1 réservait à l'utilisateur, l'ajout d'un backend et l'appel d'API à clé : il l'a demandée explicitement.
+
+### D29 — Agent de décision LLM (gpt-4o-mini) pour les rapprochements potentiels
+
+Demande de l'utilisateur : quand un « Potential Close Approach » est détecté, un agent LLM (OpenAI **gpt-4o-mini**) choisit la meilleure action. Cette action exige une approbation humaine, sauf quand le rapprochement est très serré : elle est alors exécutée automatiquement. Un historique garde les actions approuvées, rejetées et exécutées automatiquement.
+
+- **Le LLM choisit, il ne calcule pas.** Le serveur calcule les options possibles (`server/agent.ts`) :
+  - `monitor` : continuer la surveillance ;
+  - `request_update` : demander des données de suivi plus récentes ;
+  - poussées le long de la trajectoire (`along_track_burn`), dimensionnées pour des distances cibles de 2 et 5 km. Approximation au premier ordre de Clohessy–Wiltshire, Δx ≈ 3·Δv·t ; poussée 2 h avant le TCA (au plus tôt dans 10 min, au moins 30 min avant le TCA) ; Δv ≤ 2 m/s ;
+  - aucune poussée pour un débris ou un étage de fusée.
+- **Appel OpenAI** : Chat Completions avec le modèle `gpt-4o-mini`, `temperature` 0,2 et `response_format` en `json_schema` strict, où `option_id` est un **enum limité aux options calculées**. La réponse est revalidée : un identifiant inconnu est rejeté. Le prompt interdit toute probabilité et tout chiffre inventé.
+- **Repli** : sans clé, en cas d'erreur API ou de réponse invalide, une règle déterministe choisit l'action. Elle est affichée comme « rule-based (LLM unavailable: raison) », jamais présentée comme une décision du LLM.
+- **Politique (déterministe, pas le LLM)** :
+  - distance minimale calculée < 1 km (`AGENT.autoExecuteKm`) → **auto-executed**, enregistré avec `resolvedBy: auto-policy` ;
+  - sinon → **pending**, en attente d'**Approve** ou **Reject** (avec commentaire facultatif) par l'opérateur.
+- **Déclenchement** : après chaque screening, l'agent analyse automatiquement les 3 événements les plus serrés (`AGENT.autoAnalyzeTop`), ce qui limite le coût des appels. Les autres s'analysent à la demande avec le bouton « Ask agent ». Un événement déjà décidé n'est pas renvoyé au LLM.
+- **Historique** : stocké dans `data/decisions.json` côté serveur (ignoré par git), filtrable, exportable en JSON. Une décision déjà tranchée ne peut plus être modifiée (409).
+- **Simulation** : « exécuter » signifie enregistrer et afficher la décision. Le tableau de bord ne commande aucun engin spatial ; c'est indiqué dans l'interface.
+- **Clé** : `OPENAI_API_KEY` dans `.env`, lu par le serveur uniquement. Le serveur lit aussi `../.env` quand le projet se trouve dans un sous-dossier de HackLumen, dont le `.env` contient déjà cette variable.
+- **Tests** : 9 tests avec un OpenAI simulé au format Chat Completions documenté. **Limite** : api.openai.com est bloqué dans l'environnement cloud, l'appel réel n'a donc pas été exécuté ici. Il doit être vérifié sur la machine de l'utilisateur, avec sa clé.
+- Cette fonctionnalité correspond à deux éléments de SPEC §8.4 (« Plus tard ») et §1 : un LLM payant et des manœuvres. L'utilisateur les a demandés explicitement, et la limite de vocabulaire est respectée : aucune probabilité n'est affichée.

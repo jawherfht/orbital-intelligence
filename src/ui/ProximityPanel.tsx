@@ -1,6 +1,7 @@
 /**
  * Proximity Monitoring (SPEC O1): screening parameters, progress/cancel,
- * event list with mandatory fields (§2.3), distance chart for the active event.
+ * event list with mandatory fields (§2.3), distance chart for the active event,
+ * decision agent recommendations and history (DECISIONS D29).
  */
 import { useMemo } from 'react';
 import { en } from '../i18n/en';
@@ -9,9 +10,10 @@ import { useOrbitalStore } from '../store/useOrbitalStore';
 import { activeEvent, useScreeningStore } from '../store/useScreeningStore';
 import type { CloseApproachEvent } from '../screening/closeApproach';
 import { DistanceChart } from './DistanceChart';
+import { AgentInline, DecisionLog } from './DecisionPanel';
 import { fmtDays, fmtUtc } from './format';
 
-function EventCard({ ev, active, onOpen }: { ev: CloseApproachEvent; active: boolean; onOpen: () => void }) {
+function EventCard({ ev, active, onOpen, thresholdKm }: { ev: CloseApproachEvent; active: boolean; onOpen: () => void; thresholdKm: number }) {
   const setLimitationsOpen = useScreeningStore((s) => s.setLimitationsOpen);
   const tight = ev.minDistanceKm < SCREENING.tightThresholdKm;
   const color = tight ? COLORS.tight : COLORS.approach;
@@ -41,6 +43,7 @@ function EventCard({ ev, active, onOpen }: { ev: CloseApproachEvent; active: boo
       <button type="button" className="link mt-1 text-xs" onClick={() => setLimitationsOpen(true)}>
         {en.proximity.whyVerify}
       </button>
+      <AgentInline ev={ev} thresholdKm={thresholdKm} />
     </li>
   );
 }
@@ -143,12 +146,13 @@ export function ProximityPanel() {
           <span className="label">{en.proximity.events(st.events.length)}</span>
           <ul className="scroll-thin flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
             {st.events.map((e) => (
-              <EventCard key={e.id} ev={e} active={e.id === st.activeEventId} onOpen={() => st.openEvent(e.id)} />
+              <EventCard key={e.id} ev={e} active={e.id === st.activeEventId} onOpen={() => st.openEvent(e.id)} thresholdKm={st.lastRun?.thresholdKm ?? st.thresholdKm} />
             ))}
           </ul>
         </>
       )}
       {ev && <DistanceChart event={ev} thresholdKm={st.lastRun?.thresholdKm ?? st.thresholdKm} />}
+      <DecisionLog />
       {st.simulatedActive && (
         <button type="button" className="chip justify-center" onClick={st.clearSimulated}>
           {en.proximity.clearSimulated}

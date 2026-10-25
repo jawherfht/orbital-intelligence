@@ -8,6 +8,7 @@ export interface SourceStatus {
   celestrak: { available: true };
   spacetrack: { configured: boolean; requestsLastHour: number; hourlyLimit: number };
   n2yo: { configured: boolean; transactionsLastHour: number; hourlyLimit: number };
+  agent: { configured: boolean; model: string; autoExecuteKm: number };
 }
 
 export interface SpaceTrackGpResponse {
