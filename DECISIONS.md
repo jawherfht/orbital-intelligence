@@ -116,3 +116,31 @@ Le bouton « Start demo » enchaîne les 5 étapes de SPEC §10, avec des légen
 ### D27 — FPS
 
 L'environnement cloud n'a pas de GPU : le rendu y est logiciel (SwiftShader) et n'est pas représentatif. Le compteur FPS (mode Debug) permet de vérifier l'objectif ≥ 50 FPS sur une vraie machine. Coût par image côté CPU : interpolation de 1 333 objets plus une copie de buffer, soit bien moins d'une milliseconde.
+
+## Sources multiples (2026-10-25)
+
+### D28 — CelesTrak + Space-Track + N2YO, avec un petit serveur local
+
+Demande de l'utilisateur : utiliser trois API gratuites qui fournissent des données orbitales réelles ou des positions calculées, sans aucune donnée inventée. Architecture : CelesTrak (primaire) et Space-Track (secondaire) → validation & fraîcheur → SGP4 → globe 3D, avec N2YO pour vérifier ponctuellement les positions.
+
+- **Pourquoi un serveur** : Space-Track exige un compte et une session par cookie, et n'autorise pas le CORS. N2YO exige une clé API. Ces secrets ne doivent jamais se retrouver dans le bundle du navigateur. Le serveur `server/index.ts` est en Node ≥ 22, **sans dépendance** : `node:http` et `fetch`. Il lit `.env` (ignoré par git, modèle dans `.env.example`) et expose `/api/orbital/*`. `npm run dev` lance le serveur et Vite ensemble, `npm start` sert le build de production. L'application reste utilisable sans serveur (snapshot local), mais la vérification indique alors « serveur injoignable ».
+- **CelesTrak** (`/api/orbital/celestrak/group/:g`) : OMM JSON, avec repli sur le miroir GitHub (D20), cache de 2 h. Le bouton « Refresh from CelesTrak » passe d'abord par ce serveur, ce qui supprime tout problème de CORS en production.
+- **Space-Track** (`/api/orbital/spacetrack/gp/:id` et `/history/:id`) :
+  - connexion `POST /ajaxauth/login` (`identity`, `password`), session par cookie, reconnexion après 90 min ou sur un 401 ;
+  - requêtes `class/gp` et `class/gp_history`, triées par `EPOCH desc` ;
+  - limites de 30 requêtes/min et 300/h appliquées côté serveur (mêmes valeurs que la bibliothèque Python `spacetrack`), cache de 1 h : on ne re-télécharge jamais les mêmes données en boucle.
+- **N2YO** (`/api/orbital/n2yo/positions/:id`) : `positions/{id}/{lat}/{lng}/{alt}/{s}/&apiKey=`, au plus 300 s, 1 000 transactions/h, cache de 30 s.
+- **Validation & fraîcheur** (`src/data/validation.ts`), appliquée à **chaque** jeu d'éléments, quelle que soit la source :
+  - champs numériques ;
+  - 0 ≤ e < 1, 0 ≤ i ≤ 180°, 0,05 < n < 17,5 tours/jour ;
+  - `EPHEMERIS_TYPE` = 0 ;
+  - époque valide et pas plus d'1 jour dans le futur ;
+  - fraîcheur : fresh < 3 j, aging ≤ 7 j, sinon stale.
+- **Onglet Verify** (objet sélectionné) :
+  - époque et fraîcheur de la source en usage ;
+  - Space-Track : époque, écarts Δi, ΔRAAN et Δn, et **distance entre les deux positions SGP4** à l'instant simulé. Si le jeu Space-Track est plus récent (> 30 min), un bouton permet de l'utiliser pour cet objet (« Element source: Space-Track » dans la fiche) ;
+  - historique des 10 derniers jeux d'éléments, avec l'intervalle entre deux mises à jour ;
+  - N2YO : positions prédites comparées à nos positions SGP4 aux **mêmes horodatages**, avec l'écart horizontal moyen et maximal et l'écart d'altitude. N2YO calcule lui-même ces positions à partir de ses propres éléments : c'est une prédiction indépendante, pas une mesure.
+- **Aucune valeur de remplacement** : sans clé, avec une limite atteinte ou une erreur réseau, l'interface affiche la raison (« not configured — add N2YO_API_KEY to .env… »), jamais un chiffre de substitution.
+- **Tests** : les clients serveur sont testés avec un `fetch` simulé qui suit les formats documentés (champs en chaînes de Space-Track, cookie, `{"Login":"Failed"}`, URL N2YO avec `&apiKey=`). Les valeurs orbitales proviennent du jeu ISS réel. **Limite** : depuis l'environnement cloud, space-track.org et api.n2yo.com sont bloqués (vérifié : « fetch failed »). Les appels réels n'ont donc pas pu être exécutés ici ; ils doivent être vérifiés sur une machine avec les identifiants de l'utilisateur.
+- Cette fonctionnalité répond à deux points que SPEC §1 réservait à l'utilisateur, l'ajout d'un backend et l'appel d'API à clé : il l'a demandée explicitement.

@@ -12,6 +12,7 @@ import { DebugOverlay } from './ui/DebugOverlay';
 import { SearchPanel } from './ui/SearchPanel';
 import { SatelliteInfoPanel } from './ui/SatelliteInfoPanel';
 import { ExplainPanel } from './ui/ExplainPanel';
+import { VerifyPanel } from './ui/VerifyPanel';
 import { TimeControls } from './ui/TimeControls';
 import { LayerFilters } from './ui/LayerFilters';
 import { ProximityPanel } from './ui/ProximityPanel';
@@ -77,9 +78,12 @@ function SatellitesPanel() {
             <button type="button" role="tab" aria-selected={tab === 'explain'} className={`chip flex-1 justify-center ${tab === 'explain' ? 'chip-active' : ''}`} onClick={() => setTab('explain')}>
               {en.explain.title}
             </button>
+            <button type="button" role="tab" aria-selected={tab === 'verify'} className={`chip flex-1 justify-center ${tab === 'verify' ? 'chip-active' : ''}`} onClick={() => setTab('verify')}>
+              {en.verify.tab}
+            </button>
           </div>
         )}
-        {tab === 'info' || selectedId === null ? <SatelliteInfoPanel onExplain={() => setTab('explain')} /> : <ExplainPanel />}
+        {tab === 'info' || selectedId === null ? <SatelliteInfoPanel onExplain={() => setTab('explain')} /> : tab === 'explain' ? <ExplainPanel /> : <VerifyPanel />}
       </div>
     </Panel>
   );

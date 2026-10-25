@@ -2,13 +2,14 @@
  * Data access (SPEC §4.3):
  *   1. local snapshot (public/data) — immediate, works offline;
  *   2. "Refresh from CelesTrak": live download, cached 2 h in IndexedDB.
- *      Order tried: CelesTrak directly → Vite dev proxy (dev only) → GitHub mirror of CelesTrak (DECISIONS D20).
+ *      Order tried: local data server → CelesTrak directly → Vite dev proxy (dev only) → GitHub mirror of CelesTrak (DECISIONS D20, D28).
  * IndexedDB is optional: every access is wrapped in try/catch (DECISIONS D13).
  */
 import { DATA, SNAPSHOT_GROUPS, SOURCES } from '../config';
 import type { DataSourceInfo, OmmRecord, SnapshotManifest } from '../types/orbital';
 import { parseTleFile } from './tle';
 import { sampleGroup } from './sample';
+import { fetchCelestrakGroupViaServer } from './sourcesClient';
 
 export interface GroupData {
   group: string;
@@ -121,6 +122,13 @@ async function cachePut(entry: CacheEntry): Promise<void> {
 
 async function fetchGroupLive(group: string): Promise<{ omm: OmmRecord[]; origin: string }> {
   const errors: string[] = [];
+  // 1. The local data server (no CORS issue, shared 2 h cache, mirror fallback).
+  try {
+    const r = await fetchCelestrakGroupViaServer(group);
+    if (r.records.length) return { omm: r.records, origin: r.origin };
+  } catch (e) {
+    errors.push((e as Error).message);
+  }
   const direct = SOURCES.celestrakGroup(group);
   const candidates = [direct];
   if (import.meta.env.DEV) candidates.push(direct.replace('https://celestrak.org', DATA.celestrakDevProxy));

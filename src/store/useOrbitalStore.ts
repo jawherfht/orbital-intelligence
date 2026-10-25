@@ -52,6 +52,8 @@ interface OrbitalState {
   setShowOrbit: (v: boolean) => void;
   setShowGroundTrack: (v: boolean) => void;
   setSearchQuery: (q: string) => void;
+  /** Swaps one object's element set (e.g. a newer Space-Track set), keeping its place in the catalog. */
+  replaceRecord: (rec: SatelliteRecord) => void;
   /** Adds or removes the synthetic objects of the simulated scenario (DECISIONS D9). */
   setSimulatedObjects: (recs: SatelliteRecord[]) => void;
 }
@@ -168,6 +170,11 @@ export const useOrbitalStore = create<OrbitalState>((set, get) => ({
   setShowOrbit: (showOrbit) => set({ showOrbit }),
   setShowGroundTrack: (showGroundTrack) => set({ showGroundTrack }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
+  replaceRecord: (rec) =>
+    set((s) => {
+      const records = s.records.map((r) => (r.noradId === rec.noradId ? rec : r));
+      return { records, byId: indexRecords(records), catalogVersion: s.catalogVersion + 1 };
+    }),
 
   setSimulatedObjects: (sim) =>
     set((s) => {

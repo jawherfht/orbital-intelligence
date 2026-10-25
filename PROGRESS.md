@@ -49,9 +49,18 @@ Légende : ✅ fait · 🟡 en cours · ⬜ à faire · ⚠️ en attente d'une 
 - ✅ Responsive : tiroirs sous 900 px, aucun défilement horizontal à 390 px ; panneaux repliables sur desktop
 - ✅ `README.md`, `docs/METHODOLOGY.md`, `DECISIONS.md` à jour
 
+## Sources multiples — CelesTrak + Space-Track + N2YO ✅ (2026-10-25, D28)
+- ✅ Serveur local sans dépendance (`server/`) : secrets dans `.env`, proxy CelesTrak (repli sur le miroir), Space-Track (connexion, gp, gp_history), N2YO (positions)
+- ✅ Limites de débit et caches : Space-Track 30/min, 300/h, 1 h ; N2YO 1 000/h, 30 s ; CelesTrak 2 h
+- ✅ Validation & fraîcheur appliquées à chaque jeu d'éléments, quelle que soit la source
+- ✅ Onglet Verify : comparaison CelesTrak ↔ Space-Track, historique, bascule vers un jeu plus récent, comparaison des positions N2YO ↔ SGP4
+- ✅ `npm run dev` lance le serveur et Vite ensemble ; `npm start` sert le build de production
+- ✅ 55 tests (clients serveur avec `fetch` simulé, validation, comparaisons)
+- ⚠️ Appels réels à Space-Track et N2YO à vérifier avec les identifiants de l'utilisateur (domaines bloqués dans l'environnement cloud)
+
 ## Définition de « terminé » (SPEC §11)
 - ✅ `npm install && npm run dev` démarre sans erreur
-- ✅ `npm run build` et `npm test` passent (37 tests), sans erreur TypeScript
+- ✅ `npm run build` et `npm test` passent (55 tests), sans erreur TypeScript
 - ✅ M1 à M7 respectent leurs critères
 - ✅ Vocabulaire interdit absent (test automatique sur `en.ts` et sur tout `src/`)
 - ✅ Fonctionne hors ligne avec les snapshots

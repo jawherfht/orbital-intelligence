@@ -16,6 +16,20 @@ The module never shows a probability of collision.
 | Category | GP data carries no object type. The category is **inferred** from catalogue naming (`DEB` → debris, `R/B` → rocket body) and from the group (named stations in `stations`). The interface labels it "Category (inferred)". |
 | Invalid sets | Every element set is test-propagated when loaded. Objects for which SGP4 fails (decayed, invalid elements) are skipped and counted ("N objects skipped"). |
 
+### Secondary source and verification (DECISIONS D28)
+
+* **Validation & freshness**: every element set, from any source, is checked before SGP4.
+  * Numeric fields; 0 ≤ e < 1; 0 ≤ i ≤ 180°; 0.05 < n < 17.5 rev/day; `EPHEMERIS_TYPE` 0.
+  * Valid epoch, at most 1 day in the future.
+  * Freshness: fresh < 3 days, aging ≤ 7 days, otherwise stale.
+* **Space-Track** (secondary): latest GP element set and `gp_history` for the selected object, through the local server.
+  * The comparison shows the epoch difference, Δi, ΔRAAN and Δn.
+  * It also shows the **distance between the SGP4 positions of the two element sets** at the simulated time. A few km is typical when the epochs differ by hours; a larger value points to a manoeuvre or a stale set.
+  * When the Space-Track set is newer, the user can switch the object to it.
+* **N2YO** (verification): N2YO returns predicted latitude, longitude and altitude, one per second. They are compared with our SGP4 positions at the **same timestamps**: mean and maximum horizontal difference, and mean altitude difference.
+  * N2YO propagates its own element sets, so this is an independent cross-check of the pipeline, not ground truth.
+* **No substitute data**: a source that is unavailable is reported as such.
+
 ## 2. Propagation
 
 * **Model**: SGP4/SDP4 through [satellite.js](https://github.com/shashwatak/satellite-js) 7.1.0 (`json2satrec`, `propagate`, `gstime`, `eciToGeodetic`). The API was checked against the installed `.d.ts` files (DECISIONS D14).

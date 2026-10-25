@@ -53,6 +53,8 @@ export interface SatelliteRecord {
   satrec: SatRec;
   /** Original OMM, kept so the record can be sent to a Web Worker. */
   omm: OmmRecord;
+  /** Where the element set in use comes from (DECISIONS D28). Default: CelesTrak. */
+  elementSource?: 'celestrak' | 'space-track';
   /** True for synthetic objects of the simulated test scenario (DECISIONS D9). */
   simulated?: boolean;
 }

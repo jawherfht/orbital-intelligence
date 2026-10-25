@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type RightTab = 'info' | 'explain';
+export type RightTab = 'info' | 'explain' | 'verify';
 
 interface UiState {
   debug: boolean;

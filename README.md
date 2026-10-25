@@ -3,9 +3,13 @@
 Interactive 3D globe showing ~1,300 catalogued objects in Earth orbit. Positions are **estimates** computed with the SGP4 model from public, dated orbital elements (CelesTrak GP data). The module never claims measured real-time positions and never computes a probability of collision.
 
 ```
-CelesTrak OMM ─▶ satellite.js (SGP4) ─┬─▶ React + Three.js globe & trajectories ─┐
-                                      └─▶ Proximity screening (Web Worker) ──────┴─▶ Panels, timeline ─▶ Explain (deterministic)
+CelesTrak (primary) ───┐
+                       ├─▶ Validation & freshness ─▶ SGP4 (satellite.js) ─┬─▶ 3D globe, trajectories, panels
+Space-Track (secondary)┘                                                   ├─▶ Proximity screening (Web Worker)
+                                        N2YO (selected position checks) ───┘
 ```
+
+Credentials for Space-Track and N2YO stay in a small local server (`server/`, no dependencies). The browser never sees them.
 
 ## Features
 
@@ -21,6 +25,7 @@ CelesTrak OMM ─▶ satellite.js (SGP4) ─┬─▶ React + Three.js globe & t
 | Event timeline | ✅ Optional | Click an event → clock jumps to the TCA, both arcs are highlighted, distance plot |
 | Explanations | ✅ Optional | Deterministic texts with **Computed** / **Reference** badges; `ExplanationProvider` interface for a future assistant (no LLM) |
 | Demo mode | ✅ | One click, fully offline, 5 captioned steps |
+| Multi-source verification | ✅ | **Verify** tab: CelesTrak vs Space-Track (epoch, element and position differences, history; option to use the newer set) and N2YO predicted positions vs our SGP4 |
 | Maneuver optimizer | ⛔ Later | Out of scope (SPEC §8.4) |
 
 ## Quick start
@@ -29,12 +34,29 @@ Requirements: Node.js 22 or later (the snapshot script uses Node's built-in Type
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # data server (port 8787) + app on http://localhost:5173
 ```
+
+### API keys (optional, for the Verify tab)
+
+The app works without any key: CelesTrak needs none. To enable Space-Track and N2YO:
+
+1. Create a free account on [Space-Track.org](https://www.space-track.org/auth/createAccount) and on [N2YO](https://www.n2yo.com), then generate an API key in your N2YO profile.
+2. Copy `.env.example` to `.env` (in PowerShell: `Copy-Item .env.example .env`) and fill in:
+   ```
+   SPACETRACK_IDENTITY=your-login
+   SPACETRACK_PASSWORD=your-password
+   N2YO_API_KEY=your-key
+   ```
+3. Restart `npm run dev`. The terminal prints `Space-Track: configured` and `N2YO: configured`.
+
+`.env` is git-ignored. Never commit it. The server enforces each provider's limits: Space-Track 30 requests/min and 300/h with a 1 h cache, N2YO 1,000 transactions/h with a 30 s cache.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Development server (with a `/celestrak` proxy for live refresh) |
+| `npm run dev` | Local data server + Vite dev server (one command, Ctrl+C stops both) |
+| `npm run dev:web` | Vite only (no Space-Track / N2YO) |
+| `npm start` | Serve the production build (`npm run build` first) and the API on http://127.0.0.1:8787 |
 | `npm run build` | Type-check and production build in `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm test` | Unit tests (vitest): frames, SGP4 engine, TLE→OMM, interpolation, screening, vocabulary |
@@ -86,6 +108,7 @@ src/screening/                  pre-filter, close-approach search, screening wor
 src/scene/                      R3F scene: Earth, swarm, picking, halos, trails, camera, close-approach arcs
 src/ui/                         panels: top bar, search, info, explain, time, layers, proximity, timeline, chart, modal
 src/explain/                    ExplanationProvider (deterministic)
+server/                         local data server: CelesTrak proxy, Space-Track and N2YO clients, rate limits, caches
 src/store/                      zustand stores: clock, catalog/selection, screening, UI, demo
 ```
 
@@ -100,6 +123,8 @@ src/store/                      zustand stores: clock, catalog/selection, screen
 
 | Resource | Source | Licence |
 |---|---|---|
+| Secondary orbital data | [Space-Track.org](https://www.space-track.org) (18th/19th Space Defense Squadron) | Free account, Space-Track user agreement |
+| Position verification | [N2YO](https://www.n2yo.com) REST API | Free API key, N2YO terms |
 | Orbital data | [CelesTrak](https://celestrak.org) (Dr T.S. Kelso), GP data. When CelesTrak is unreachable, it is relayed by [2048lr/celestrak-mirror](https://github.com/2048lr/celestrak-mirror) | Public data, see CelesTrak usage rules |
 | SGP4 propagation | [satellite.js](https://github.com/shashwatak/satellite-js) | MIT |
 | 3D | [three.js](https://threejs.org), [React Three Fiber](https://r3f.docs.pmnd.rs/), [drei](https://github.com/pmndrs/drei) | MIT |

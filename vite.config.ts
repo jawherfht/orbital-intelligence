@@ -6,14 +6,19 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    // Dev-only proxy so the browser can reach CelesTrak without CORS issues (SPEC §4.2).
     proxy: {
+      // Local orbital-data server (server/index.ts): Space-Track, N2YO, CelesTrak with secrets kept server-side.
+      '/api/orbital': { target: 'http://127.0.0.1:8787', changeOrigin: false },
+      // Dev-only proxy so the browser can reach CelesTrak without CORS issues (SPEC §4.2).
       '/celestrak': {
         target: 'https://celestrak.org',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/celestrak/, ''),
       },
     },
+  },
+  preview: {
+    proxy: { '/api/orbital': { target: 'http://127.0.0.1:8787', changeOrigin: false } },
   },
   // satellite.js 7 ships an optional WASM build that spawns ES-module workers
   // with top-level await; Vite must emit workers as ES modules (DECISIONS D16).
@@ -26,6 +31,6 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
   },
 });

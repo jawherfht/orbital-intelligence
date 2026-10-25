@@ -70,6 +70,7 @@ export function SatelliteInfoPanel({ onExplain }: { onExplain: () => void }) {
         <Row label={en.info.intl}>{rec.intlDesignator ?? '—'}</Row>
         <Row label={en.info.category}>{en.categories[rec.category]}</Row>
         <Row label={en.info.group}>{rec.group}</Row>
+        <Row label={en.verify.elementSource}>{rec.elementSource === 'space-track' ? 'Space-Track' : 'CelesTrak'}</Row>
         {state ? (
           <>
             <Row label={en.info.altitude}>{fmtKm(state.altKm)}</Row>

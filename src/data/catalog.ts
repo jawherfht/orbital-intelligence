@@ -5,6 +5,7 @@
 import { json2satrec, type OMMJsonObject } from 'satellite.js';
 import type { OmmRecord, SatelliteCategory, SatelliteRecord } from '../types/orbital';
 import { isPropagatable } from '../orbital/propagate';
+import { validateOmm } from './validation';
 
 const STATION_NAMES = /\b(ISS|ZARYA|TIANGONG|TIANHE|CSS|WENTIAN|MENGTIAN)\b/i;
 
@@ -55,7 +56,7 @@ export function ommToRecord(omm: OmmRecord, group: string): SatelliteRecord | nu
 
 export interface CatalogBuildResult {
   records: SatelliteRecord[];
-  /** Objects whose element set could not be propagated (decayed, invalid). */
+  /** Objects whose element set failed validation or could not be propagated (decayed, invalid). */
   skipped: number;
   /** Objects present in several groups, kept once. */
   duplicates: number;
@@ -78,7 +79,8 @@ export function buildCatalog(groups: { group: string; omm: OmmRecord[] }[], chec
         duplicates += 1;
         continue;
       }
-      const rec = ommToRecord(o, group);
+      // Validation & freshness checks before SGP4 (DECISIONS D28).
+      const rec = validateOmm(o, checkAt.getTime() + 86_400_000).ok ? ommToRecord(o, group) : null;
       if (!rec || !isPropagatable(rec.satrec, checkAt)) {
         skipped += 1;
         continue;
