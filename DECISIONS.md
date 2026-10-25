@@ -68,3 +68,51 @@ React 19, Vite 8, TypeScript 7, Tailwind CSS 4, three 0.186, @react-three/fiber 
 ### D19 — Vue d'ouverture
 
 La caméra s'ouvre au-dessus de l'Afrique du Nord et de la Méditerranée (30°N, 10°E), recalculée selon l'heure simulée, pour que le jury voie d'emblée une région familière.
+
+## Phases 2 à 5 (2026-10-25)
+
+### D20 — Source des données : CelesTrak, puis miroir GitHub de CelesTrak
+
+`celestrak.org` reste bloqué depuis l'environnement cloud (proxy 403, vérifié de nouveau le 2026-10-25), ainsi que les API tierces (tle.ivanstanojevic.me, wheretheiss.at). Seuls GitHub et npm sont accessibles.
+
+- `npm run data:update` essaie **d'abord CelesTrak en OMM JSON**. En cas d'échec, il lit le dépôt public [2048lr/celestrak-mirror](https://github.com/2048lr/celestrak-mirror). Son workflow GitHub Actions (lu et vérifié) télécharge `celestrak.org/NORAD/elements/gp.php?GROUP=<g>&FORMAT=tle` toutes les 30 min, avec un contrôle de cohérence.
+- Les TLE sont convertis en OMM **sans perte** (`src/data/tle.ts`, test d'équivalence avec `twoline2satrec` : < 5 m d'écart, dû à la précision à la milliseconde de `json2satrec`).
+- Le manifeste enregistre, pour chaque groupe, l'URL réelle, le format (`celestrak-omm` ou `mirror-tle`) et l'heure de rafraîchissement du miroir. L'interface affiche « via GitHub mirror of CelesTrak ». **Aucune donnée inventée** : ce sont les données GP de CelesTrak, relayées.
+- Snapshot actuel : 7 groupes (stations, weather, resource, science, amateur, geo, starlink échantillonné à 400) = 1 365 objets ; 1 333 après dédoublonnage et contrôle SGP4. `gnss` n'est pas dans le miroir : il sera récupéré dès que le script tournera sur une machine qui atteint CelesTrak.
+- Rafraîchissement en direct dans le navigateur : CelesTrak direct → proxy Vite (dev) → miroir, avec un cache IndexedDB de 2 h.
+
+### D21 — Points (THREE.Points) au lieu d'InstancedMesh
+
+SPEC §6.2 demande un InstancedMesh et SPEC §7 des « sprites additifs ». `THREE.Points` avec un shader (disque doux additif, taille par point, couleur par catégorie) satisfait les deux exigences : **un seul draw call** et un rendu en sprites. C'est aussi moins coûteux que 1 500 sphères instanciées. Les objets masqués par les filtres reçoivent une taille 0. La sélection se fait en espace écran (rayon de 10 px), en ignorant les objets cachés par la Terre.
+
+### D11 (suite) — Interpolation mesurée
+
+Avec une interpolation linéaire, l'erreur atteint ~24 km pour l'ISS à x600, puisque les échantillons du worker sont espacés de 150 s. Le module utilise donc une **interpolation d'Hermite cubique** avec les vitesses SGP4 : moins de 0,1 km (test `interpolate.test.ts`). L'erreur réelle est aussi mesurée en continu et affichée en mode Debug.
+
+### D22 — Graphiques en SVG plutôt que recharts
+
+Il n'y a qu'un seul graphique (distance/temps autour du TCA) et une frise : un SVG intégré de quelques dizaines de lignes suffit. On évite environ 100 Ko gzip de dépendance (SPEC §3 autorise « recharts ou équivalent léger »). L'échelle logarithmique rend lisibles à la fois le minimum (km) et les extrémités (milliers de km).
+
+### D23 — Trajectoire 3D sur une orbite complète
+
+Dans le repère inertiel, une orbite se referme sur elle-même. Une trace de ±1 période dessinait donc deux fois la même ellipse, et le passé (trait plein) se superposait au futur (pointillés). Choix retenu :
+- trajectoire 3D : −½ période en trait plein qui s'estompe, puis +½ période en pointillés, soit une orbite complète ;
+- trace au sol (option) : ±1 période, car la rotation de la Terre sépare les deux passages.
+
+Les échantillons calculés couvrent bien ±1 période (SPEC M6).
+
+### D24 — Objets co-localisés exclus du screening
+
+CelesTrak publie plusieurs modules de l'ISS (POISK, etc.) avec les mêmes éléments que la station. Leur « distance minimale » vaut 0 km par construction, comme la ligne « now 0.00 km HIGH » de la maquette de référence. Les paires dont les éléments sont identiques sont **exclues et comptées** (« 3 co-located pairs excluded »), au lieu d'être signalées.
+
+### D25 — Scénario synthétique calibré
+
+Les termes J2 (séculaires et à courte période) dépendent de l'inclinaison. Avec une construction purement képlérienne, le croisement se décalait de plusieurs secondes et de plusieurs km. Les anomalies moyennes sont donc **calibrées numériquement** sur les passages réels au nœud ascendant calculés par SGP4 (bissection). L'époque des éléments est fixée 10 min avant le croisement : la régression nodale différentielle écarte les lignes des nœuds d'environ 0,6° en 3 h. Résultat : TCA à moins de 1 s de l'instant prévu, distance minimale d'environ 2,5 km.
+
+### D26 — Mode démo
+
+Le bouton « Start demo » enchaîne les 5 étapes de SPEC §10, avec des légendes. Le screening réel est lancé sur l'ISS. S'il ne trouve rien (cas habituel), la démo bascule sur le scénario simulé avec bandeau (D9). La démo fonctionne entièrement hors ligne et « Stop demo » l'interrompt à tout moment.
+
+### D27 — FPS
+
+L'environnement cloud n'a pas de GPU : le rendu y est logiciel (SwiftShader) et n'est pas représentatif. Le compteur FPS (mode Debug) permet de vérifier l'objectif ≥ 50 FPS sur une vraie machine. Coût par image côté CPU : interpolation de 1 333 objets plus une copie de buffer, soit bien moins d'une milliseconde.

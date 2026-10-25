@@ -9,30 +9,56 @@ Légende : ✅ fait · 🟡 en cours · ⬜ à faire · ⚠️ en attente d'une 
 
 ## Phase 1 — Socle ✅ (2026-10-25)
 - ✅ Vite + React + TypeScript strict + Tailwind + R3F + drei + zustand + vitest + satellite.js
-- ✅ API satellite.js 7.1.0 vérifiée dans les `.d.ts` installés (DECISIONS D14)
-- ✅ Terre texturée, tournant selon le GMST, éclairage jour/nuit selon la position réelle du Soleil
-- ✅ Lumières des villes côté nuit, reflet sur les océans, halo atmosphérique
-- ✅ Champ d'étoiles, OrbitControls avec limites de zoom
-- ✅ Horloge de simulation (store) et heure UTC simulée dans la barre du haut
-- ✅ Mode debug : compteur FPS + marqueurs d'alignement (0°/0° et Tunis) — alignement vérifié visuellement
-- ✅ Polices intégrées au build (fonctionne hors ligne)
-- ✅ Composant exportable `OrbitalIntelligenceModule`
-- ✅ Tests : repères (axes, cohérence satellite.js, UV de texture), direction du Soleil, vocabulaire interdit
-- ⚠️ Provenance des textures à confirmer (DECISIONS D10)
-- ⚠️ FPS non mesurable ici (rendu logiciel sans GPU dans l'environnement cloud) : à vérifier sur une vraie machine
+- ✅ API satellite.js 7.1.0 vérifiée (D14), modèle de repère ECI + rotation GMST (D15)
+- ✅ Terre jour/nuit selon le Soleil réel, lumières des villes, atmosphère, étoiles, OrbitControls
+- ✅ Mode debug : FPS, marqueurs d'alignement de texture
+- ⚠️ Provenance des textures à confirmer (D10)
 
-## Phase 2 — Données et moteur orbital ⬜
-- ⬜ `scripts/fetch-snapshots.ts` + `npm run data:update` (CelesTrak bloqué dans le cloud → lancement sur la machine de l'utilisateur, D5)
-- ⬜ Client de données : snapshot local, refresh live, cache IndexedDB 2 h, indicateur de source
-- ⬜ Parsing OMM → `SatelliteRecord`, catégorie déduite
-- ⬜ Propagation, grandeurs dérivées
-- ⬜ Tests : ISS (altitude, période), GEO ≈ 1 436 min, objet en erreur ignoré
+## Phase 2 — Données et moteur orbital ✅ (2026-10-25)
+- ✅ `scripts/fetch-snapshots.ts` (`npm run data:update`) : CelesTrak OMM JSON, puis miroir GitHub de CelesTrak (D20), garde de 2 h, `--force`
+- ✅ Snapshots réels dans `public/data/` : 7 groupes, 1 365 objets (Starlink échantillonné à 400)
+- ✅ Client : snapshot local → refresh live (CelesTrak → proxy dev → miroir), cache IndexedDB de 2 h, indicateur de source
+- ✅ Parsing OMM → `SatelliteRecord`, catégorie déduite (D12), dédoublonnage, objets en erreur SGP4 ignorés et comptés
+- ✅ `propagate.ts`, `derived.ts`, `orbitPath.ts`
+- ✅ Tests : ISS (≈ 417 km, 93,0 min), GEO ≈ 1 436 min, HEO/MEO, erreur SGP4 ignorée, conversion TLE → OMM exacte, recherche
 
-## Phase 3 — Visualisation et interaction (fin du MVP) ⬜
-- ⬜ Essaim InstancedMesh + Web Worker + interpolation
-- ⬜ Sélection, recherche, fiche, trajectoire
-- ⬜ Contrôles du temps complets (Live, Pause, vitesses, curseur, avertissement d'époque)
-- ⬜ **Point de contrôle : validation du MVP par l'utilisateur**
+## Phase 3 — Visualisation et interaction (MVP) ✅ (2026-10-25)
+- ✅ M1 Terre 3D (phase 1) + essaim en un seul draw call (D21)
+- ✅ M2 snapshot < 2 s, refresh live, indicateur de source et de date, « N objects skipped »
+- ✅ M3 Web Worker de propagation à 4 Hz + interpolation d'Hermite (< 0,1 km à x600, D11)
+- ✅ M4 recherche par nom ou NORAD, navigation clavier, message si aucun résultat
+- ✅ M5 fiche complète : époque des données, âge, validité
+- ✅ M6 trajectoire (passé en trait plein qui s'estompe, futur en pointillés, D23) + trace au sol en option
+- ✅ M7 Live / Pause / x1 x10 x60 x600 / curseur −6 h…+72 h / UTC / avertissement d'époque
+- ✅ Survol (infobulle), clic (sélection + caméra qui se recentre), filtres de catégories et de groupes, orbite affichée ou masquée
+- ✅ Vérification de bout en bout dans Chromium headless (captures d'écran desktop et mobile)
 
-## Phase 4 — Proximity Screening + Timeline ⬜
-## Phase 5 — Finition et démo ⬜
+## Phase 4 — Proximity Screening + Timeline ✅ (2026-10-25)
+- ✅ Worker de screening : pré-filtre apogée/périgée, balayage à 30 s avec garde, section dorée, annulation, barre de progression
+- ✅ Ensembles limités : objet sélectionné face à ≤ 500 objets, ou groupe contre lui-même (≤ 300)
+- ✅ Paires co-localisées (modules amarrés) exclues et comptées (D24)
+- ✅ Cartes « Potential Close Approach — Requires Verification » avec distance, TCA, vitesse relative, âge des données, lien « Why does this need verification? »
+- ✅ Frise chronologique, saut au TCA, arcs en ambre, graphe distance/temps
+- ✅ Test : orbites synthétiques, TCA à ± 2 s, accord avec un balayage de 50 ms (D25)
+- ✅ Scénario simulé avec bandeau permanent (D9)
+
+## Phase 5 — Finition et démo ✅ (2026-10-25)
+- ✅ Panneau Explain déterministe, badges Computed / Reference, interface `ExplanationProvider` (sans LLM)
+- ✅ Modal « Methods & Limitations »
+- ✅ Mode démo en un clic, hors ligne (D26)
+- ✅ Responsive : tiroirs sous 900 px, aucun défilement horizontal à 390 px ; panneaux repliables sur desktop
+- ✅ `README.md`, `docs/METHODOLOGY.md`, `DECISIONS.md` à jour
+
+## Définition de « terminé » (SPEC §11)
+- ✅ `npm install && npm run dev` démarre sans erreur
+- ✅ `npm run build` et `npm test` passent (37 tests), sans erreur TypeScript
+- ✅ M1 à M7 respectent leurs critères
+- ✅ Vocabulaire interdit absent (test automatique sur `en.ts` et sur tout `src/`)
+- ✅ Fonctionne hors ligne avec les snapshots
+- ⚠️ ≥ 50 FPS avec 1 000 objets : à mesurer sur une machine équipée d'un GPU (D27)
+- ✅ `OrbitalIntelligenceModule` exportable et documenté
+
+## Reste à faire / pistes
+- Confirmer la provenance des textures (D10) ou les remplacer par les fichiers NASA officiels
+- Lancer `npm run data:update --force` sur une machine qui atteint CelesTrak pour obtenir l'OMM natif et le groupe `gnss`
+- Plus tard (hors périmètre) : Maneuver Optimizer, probabilités/covariance, CDM, historique côté serveur
