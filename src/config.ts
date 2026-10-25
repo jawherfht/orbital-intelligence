@@ -32,7 +32,10 @@ export const RENDER = {
   maxRenderedObjects: 1500,
   /** Worker propagation rate, Hz. */
   propagationHz: 4,
-  orbitPathPoints: 180,
+  /** Samples of the selected trajectory over ±1 period. */
+  orbitPathPoints: 181,
+  /** Point sprite size in pixels at distance 1 (attenuated with distance). */
+  pointSize: 6,
 } as const;
 
 /** Data cache (SPEC §4.3). */
@@ -53,6 +56,10 @@ export const SCREENING = {
   windowHoursMax: 72,
   coarseStepS: 30,
   altitudeMarginKm: 10,
+  /** "Selected vs catalog": at most this many other objects (closest altitude bands first). */
+  maxOthers: 500,
+  /** "Group vs itself": at most this many objects. */
+  maxGroupObjects: 300,
 } as const;
 
 /** Debug markers used to check texture alignment (SPEC §6.1). */
@@ -109,4 +116,29 @@ export const SOURCES = {
     oneweb: 'tle/oneweb.tle',
     military: 'tle/military.tle',
   } as Record<string, string>,
+} as const;
+
+/** Point colours per inferred category (SPEC §7). */
+export const CATEGORY_COLORS: Record<string, string> = {
+  station: '#f0abfc',
+  payload: '#7dd3fc',
+  rocket_body: '#c4b5fd',
+  debris: '#94a3b8',
+  unknown: '#64748b',
+};
+
+export const COLORS = {
+  selected: '#38bdf8',
+  approach: '#f59e0b',
+  tight: '#ef4444',
+  simulated: '#f472b6',
+} as const;
+
+/** Interaction (SPEC §6.4). */
+export const INTERACTION = {
+  /** Hover / click pick radius, CSS pixels. */
+  pickRadiusPx: 10,
+  /** Pointer movement above which a press is a drag, not a click. */
+  clickMaxMovePx: 5,
+  cameraFocusMs: 1200,
 } as const;

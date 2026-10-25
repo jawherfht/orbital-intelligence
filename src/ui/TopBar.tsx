@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { en } from '../i18n/en';
 import { getSimDate } from '../store/simulationClock';
 import { useUiStore } from '../store/useUiStore';
+import { useOrbitalStore } from '../store/useOrbitalStore';
+import { useScreeningStore } from '../store/useScreeningStore';
+import { useDemoStore } from '../store/useDemoStore';
+import type { DataSourceInfo } from '../types/orbital';
+import { fmtUtc } from './format';
 
 function formatUtc(d: Date): { date: string; time: string } {
   const iso = d.toISOString();
@@ -27,9 +32,62 @@ function UtcClock() {
   );
 }
 
+export function sourceLabel(source: DataSourceInfo | null): string {
+  if (!source) return en.topBar.dataSourceNone;
+  const t = Date.parse(source.fetchedAt);
+  switch (source.kind) {
+    case 'snapshot':
+      return `${en.topBar.dataSourceSnapshot(fmtUtc(t, false))}${source.origin.includes('mirror') ? ` (${en.topBar.viaMirror})` : ''}`;
+    case 'live':
+      return en.topBar.dataSourceLive(fmtUtc(t, false));
+    case 'live-mirror':
+      return en.topBar.dataSourceLiveMirror(fmtUtc(t, false));
+    case 'cache':
+      return en.topBar.dataSourceCache(fmtUtc(t, false));
+  }
+}
+
+function DataSource() {
+  const status = useOrbitalStore((s) => s.status);
+  const source = useOrbitalStore((s) => s.source);
+  const count = useOrbitalStore((s) => s.records.filter((r) => !r.simulated).length);
+  const skipped = useOrbitalStore((s) => s.skipped);
+  const refreshing = useOrbitalStore((s) => s.refreshing);
+  const refreshLive = useOrbitalStore((s) => s.refreshLive);
+  const [note, setNote] = useState<string | null>(null);
+
+  const onRefresh = async () => {
+    setNote(null);
+    const r = await refreshLive();
+    setNote(r === 'failed' ? en.topBar.refreshFailed : r === 'cache' ? en.topBar.refreshCached : null);
+  };
+
+  return (
+    <div className="hidden min-w-0 flex-col items-center leading-tight lg:flex">
+      <span className="label truncate max-w-[520px]" title={source?.origin}>
+        {status === 'loading' ? en.topBar.dataSourceLoading : sourceLabel(source)}
+      </span>
+      <span className="mono text-[0.68rem] text-[var(--text-dim)]">
+        {status === 'ready' && en.topBar.objects(count)}
+        {skipped > 0 && <span className="text-[var(--warn)]"> · {en.topBar.skipped(skipped)}</span>}
+        {note && <span className="text-[var(--warn)]"> · {note}</span>}
+        {status === 'ready' && (
+          <button type="button" className="link ml-2" onClick={onRefresh} disabled={refreshing}>
+            {refreshing ? en.topBar.refreshing : en.topBar.refresh}
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function TopBar() {
   const debug = useUiStore((s) => s.debug);
   const toggleDebug = useUiStore((s) => s.toggleDebug);
+  const setLimitationsOpen = useScreeningStore((s) => s.setLimitationsOpen);
+  const demoRunning = useDemoStore((s) => s.running);
+  const startDemo = useDemoStore((s) => s.start);
+  const stopDemo = useDemoStore((s) => s.stop);
   return (
     <header className="panel pointer-events-auto flex items-center justify-between gap-3 px-3 py-2 sm:gap-4 sm:px-4 sm:py-2.5">
       <div className="flex items-center gap-3 min-w-0">
@@ -39,15 +97,16 @@ export function TopBar() {
           <p className="label truncate hidden sm:block">{en.app.subtitle}</p>
         </div>
       </div>
-      <div className="hidden md:block label">{en.topBar.dataSourceNone}</div>
-      <div className="flex items-center gap-3">
+      <DataSource />
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button type="button" className={`chip ${demoRunning ? 'chip-active' : 'chip-accent'}`} onClick={demoRunning ? stopDemo : startDemo}>
+          {demoRunning ? en.topBar.stopDemo : en.topBar.demo}
+        </button>
+        <button type="button" className="chip hidden sm:inline-flex" onClick={() => setLimitationsOpen(true)}>
+          {en.topBar.methods}
+        </button>
         <UtcClock />
-        <button
-          type="button"
-          className={`chip ${debug ? 'chip-active' : ''}`}
-          onClick={toggleDebug}
-          aria-pressed={debug}
-        >
+        <button type="button" className={`chip hidden sm:inline-flex ${debug ? 'chip-active' : ''}`} onClick={toggleDebug} aria-pressed={debug}>
           {en.debug.toggle}
         </button>
       </div>

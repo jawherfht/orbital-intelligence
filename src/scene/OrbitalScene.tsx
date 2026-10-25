@@ -1,5 +1,5 @@
 /**
- * Root 3D scene: camera, controls, starfield, Earth, debug helpers.
+ * Root 3D scene: camera, controls, starfield, Earth, satellites, trajectories, debug helpers.
  */
 import { Suspense, useLayoutEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -8,6 +8,12 @@ import * as THREE from 'three';
 import { CAMERA } from '../config';
 import { Earth } from './Earth';
 import { DebugMarkers } from './DebugMarkers';
+import { SatelliteSwarm } from './SatelliteSwarm';
+import { SwarmPicker } from './SwarmPicker';
+import { SelectedSatellite } from './SelectedSatellite';
+import { OrbitTrails } from './OrbitTrail';
+import { CameraRig } from './CameraRig';
+import { CloseApproachMarker } from './CloseApproachMarker';
 import { useUiStore } from '../store/useUiStore';
 import { getSimDate } from '../store/simulationClock';
 import { gmstAt } from '../orbital/astro';
@@ -64,7 +70,14 @@ export function OrbitalScene() {
         <Earth />
       </Suspense>
       {debug && <DebugMarkers />}
+      <SatelliteSwarm />
+      <OrbitTrails />
+      <SelectedSatellite />
+      <CloseApproachMarker />
+      <SwarmPicker />
+      <CameraRig />
       <OrbitControls
+        makeDefault
         enablePan={false}
         enableDamping
         dampingFactor={0.08}
